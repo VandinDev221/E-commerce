@@ -2,7 +2,9 @@ import Stripe from 'stripe';
 import { config } from '../config/index.js';
 
 export const stripe = config.stripe.secretKey
-  ? new Stripe(config.stripe.secretKey, { apiVersion: '2024-11-20.acacia' })
+  ? new Stripe(config.stripe.secretKey, {
+      apiVersion: '2025-02-24.acacia' as Stripe.LatestApiVersion,
+    })
   : null;
 
 export function createPaymentIntent(amount: number, currency = 'brl') {

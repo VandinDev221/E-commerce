@@ -1,17 +1,22 @@
 import Redis from 'ioredis';
 import { config } from '../config/index.js';
 
-let redis: Redis | null = null;
+// ioredis default export pode não ser reconhecido como construtor em alguns ambientes TS
+type RedisClient = import('ioredis').default;
+let redis: RedisClient | null = null;
 
-export function getRedis(): Redis | null {
+export function getRedis(): RedisClient | null {
   // Se não houver URL configurada, Redis fica desabilitado (evita timeouts em dev).
   if (!config.redis.url) return null;
   if (redis) return redis;
   try {
-    redis = new Redis(config.redis.url, {
-      maxRetriesPerRequest: 3,
-      enableOfflineQueue: false,
-    });
+    redis = new (Redis as unknown as new (url: string, opts?: object) => RedisClient)(
+      config.redis.url,
+      {
+        maxRetriesPerRequest: 3,
+        enableOfflineQueue: false,
+      }
+    );
     // Se der erro de conexão, desabilita Redis para as próximas chamadas.
     redis.on('error', () => {
       redis?.disconnect();

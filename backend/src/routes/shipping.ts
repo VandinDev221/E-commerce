@@ -9,7 +9,9 @@ router.post('/calculate', async (req, res, next) => {
     const { zipCode } = z.object({ zipCode: z.string().min(8).max(9) }).parse(req.body);
     const cleanZip = zipCode.replace(/\D/g, '');
     // ViaCEP para validar e obter região
-    const viaCep = await fetch(`https://viacep.com.br/ws/${cleanZip}/json/`).then((r) => r.json());
+    const viaCep = (await fetch(`https://viacep.com.br/ws/${cleanZip}/json/`).then((r) =>
+      r.json()
+    )) as { erro?: boolean };
     if (viaCep.erro) {
       return res.status(400).json({ error: 'CEP não encontrado' });
     }
@@ -27,7 +29,9 @@ router.post('/calculate', async (req, res, next) => {
 router.get('/cep/:zip', async (req, res, next) => {
   try {
     const zip = req.params.zip.replace(/\D/g, '');
-    const data = await fetch(`https://viacep.com.br/ws/${zip}/json/`).then((r) => r.json());
+    const data = (await fetch(`https://viacep.com.br/ws/${zip}/json/`).then((r) =>
+      r.json()
+    )) as { erro?: boolean };
     if (data.erro) return res.status(404).json({ error: 'CEP não encontrado' });
     res.json(data);
   } catch (e) {
