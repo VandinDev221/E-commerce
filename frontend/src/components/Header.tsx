@@ -1,4 +1,4 @@
-clsimport { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FiShoppingCart, FiUser, FiMenu, FiX, FiSearch, FiHeart, FiMoon, FiSun } from 'react-icons/fi';
