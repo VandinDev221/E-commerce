@@ -13,10 +13,14 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Na Vercel, o path que chega à função pode vir sem o prefixo /api (ex: /auth/login).
   // O Express espera /api/auth/login; garantimos o prefixo no mesmo objeto req.
-  const rawUrl = (req as any).url ?? (req as any).path ?? '/';
-  if (!rawUrl.startsWith('/api')) {
-    (req as any).url = '/api' + (rawUrl.startsWith('/') ? rawUrl : '/' + rawUrl);
+  const rawUrl: string = (req as any).url ?? (req as any).path ?? '/';
+  // Normaliza para sempre começar com "/" e evita duplicar "/api/api/..."
+  let normalized = rawUrl.startsWith('/') ? rawUrl : `/${rawUrl}`;
+  if (normalized.startsWith('/api/') === false) {
+    // Se vier "/auth/login" (ou similar), prefixa "/api"
+    normalized = `/api${normalized}`;
   }
+  (req as any).url = normalized;
 
   const mod = await import('../backend/dist/index.js');
   const app = (mod as { default: (req: any, res: any) => any }).default;
