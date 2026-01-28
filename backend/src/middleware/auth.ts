@@ -1,4 +1,4 @@
-import { Request, Response, NextFunction } from 'express';
+import type { Request, RequestHandler } from 'express';
 import jwt from 'jsonwebtoken';
 import { config } from '../config/index.js';
 import { prisma } from '../lib/prisma.js';
@@ -9,15 +9,11 @@ export interface JwtPayload {
   email: string;
 }
 
-export interface AuthRequest extends Request {
-  user?: { id: string; email: string; role: string };
-}
+// Mantido por compatibilidade com imports existentes nos routes.
+// `Request.user` é tipado via `src/types/express.d.ts`.
+export type AuthRequest = Request;
 
-export async function authMiddleware(
-  req: AuthRequest,
-  _res: Response,
-  next: NextFunction
-) {
+export const authMiddleware: RequestHandler = async (req, _res, next) => {
   // Priorizar o header Authorization (Bearer) sobre o cookie,
   // pois o frontend sempre envia o token mais recente nele.
   const authHeader = req.headers.authorization;
@@ -43,15 +39,11 @@ export async function authMiddleware(
   } catch {
     next(new AppError('Token inválido ou expirado', 401));
   }
-}
+};
 
-export function requireAdmin(
-  req: AuthRequest,
-  _res: Response,
-  next: NextFunction
-) {
+export const requireAdmin: RequestHandler = (req, _res, next) => {
   if (req.user?.role !== 'ADMIN') {
     return next(new AppError('Acesso negado. Apenas administradores.', 403));
   }
   next();
-}
+};

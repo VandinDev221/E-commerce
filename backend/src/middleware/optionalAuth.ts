@@ -1,14 +1,9 @@
-import { Request, Response, NextFunction } from 'express';
+import type { RequestHandler } from 'express';
 import jwt from 'jsonwebtoken';
 import { config } from '../config/index.js';
 import { prisma } from '../lib/prisma.js';
-import { AuthRequest } from './auth.js';
 
-export async function optionalAuth(
-  req: AuthRequest,
-  _res: Response,
-  next: NextFunction
-) {
+export const optionalAuth: RequestHandler = async (req, _res, next) => {
   const token =
     req.cookies?.accessToken ||
     req.headers.authorization?.replace('Bearer ', '');
@@ -26,4 +21,4 @@ export async function optionalAuth(
     // ignore
   }
   next();
-}
+};
