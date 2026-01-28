@@ -1,0 +1,17 @@
+{
+  "version": 2,
+  "buildCommand": "cd backend && npm ci && npm run build && cd ../frontend && npm ci && npm run build",
+  "outputDirectory": "frontend/dist",
+  "installCommand": "cd backend && npm ci && cd ../frontend && npm ci",
+  "framework": null,
+  "rewrites": [
+    { "source": "/api/:path*", "destination": "/api/:path*" },
+    { "source": "/((?!api/).*)", "destination": "/index.html" }
+  ],
+  "functions": {
+    "api/[[...slug]].ts": {
+      "memory": 1024,
+      "maxDuration": 30
+    }
+  },
+}

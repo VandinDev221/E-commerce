@@ -1,0 +1,214 @@
+// Prisma schema - E-commerce
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum OrderStatus {
+  PENDING
+  PROCESSING
+  PAID
+  SHIPPED
+  DELIVERED
+  CANCELLED
+}
+
+enum PaymentMethod {
+  CARD
+  PIX
+  BOLETO
+}
+
+model User {
+  id            String    @id @default(uuid())
+  email         String    @unique
+  passwordHash  String?   @map("password_hash")
+  name          String?
+  avatar        String?
+  role          Role      @default(USER)
+  emailVerified Boolean   @default(false) @map("email_verified")
+  emailVerifyToken String? @map("email_verify_token")
+  resetPasswordToken String? @map("reset_password_token")
+  resetPasswordExpires DateTime? @map("reset_password_expires")
+  googleId      String?   @unique @map("google_id")
+  githubId      String?   @unique @map("github_id")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  orders    Order[]
+  reviews   Review[]
+  addresses Address[]
+  wishlist  WishlistItem[]
+  cartItems CartItem[]
+}
+
+model Address {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  street    String
+  number    String
+  complement String?
+  neighborhood String
+  city      String
+  state     String
+  zipCode   String   @map("zip_code")
+  isDefault Boolean  @default(false) @map("is_default")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  orders Order[] @relation("ShippingAddress")
+}
+
+model Category {
+  id          String    @id @default(uuid())
+  name        String
+  slug        String    @unique
+  description String?
+  image       String?
+  parentId    String?   @map("parent_id")
+  parent      Category? @relation("CategoryToCategory", fields: [parentId], references: [id])
+  children    Category[] @relation("CategoryToCategory")
+  products    Product[]
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+}
+
+model Product {
+  id          String   @id @default(uuid())
+  name        String
+  slug        String   @unique
+  description String?
+  price       Decimal  @db.Decimal(10, 2)
+  compareAtPrice Decimal? @map("compare_at_price") @db.Decimal(10, 2)
+  stock       Int      @default(0)
+  sku         String?  @unique
+  categoryId  String?  @map("category_id")
+  category    Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  images      String[] @default([])
+  featured    Boolean  @default(false)
+  published   Boolean  @default(true)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  reviews      Review[]
+  cartItems    CartItem[]
+  orderItems   OrderItem[]
+  wishlistItems WishlistItem[]
+}
+
+model Review {
+  id        String   @id @default(uuid())
+  productId String   @map("product_id")
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  userId    String   @map("user_id")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  rating    Int      // 1-5
+  title     String?
+  content   String?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([productId, userId])
+}
+
+model Coupon {
+  id          String   @id @default(uuid())
+  code        String   @unique
+  type        String   // PERCENTAGE | FIXED
+  value       Decimal  @db.Decimal(10, 2)
+  minPurchase Decimal? @map("min_purchase") @db.Decimal(10, 2)
+  maxUses     Int?     @map("max_uses")
+  usedCount   Int      @default(0) @map("used_count")
+  startsAt    DateTime @map("starts_at")
+  endsAt      DateTime @map("ends_at")
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now()) @map("created_at")
+}
+
+model CartItem {
+  id        String   @id @default(uuid())
+  userId    String?  @map("user_id")
+  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sessionId String?  @map("session_id") // para carrinho anônimo
+  productId String   @map("product_id")
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  quantity  Int      @default(1)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([userId, productId])
+  @@index([sessionId, productId])
+}
+
+model WishlistItem {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  productId String   @map("product_id")
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@unique([userId, productId])
+}
+
+model Order {
+  id              String      @id @default(uuid())
+  orderNumber     String      @unique @map("order_number")
+  userId          String?     @map("user_id")
+  status          OrderStatus @default(PENDING)
+  paymentMethod   PaymentMethod @map("payment_method")
+  paymentId       String?     @map("payment_id") // Stripe/Mercado Pago ID
+  subtotal        Decimal     @db.Decimal(10, 2)
+  shippingCost    Decimal     @default(0) @map("shipping_cost") @db.Decimal(10, 2)
+  discount        Decimal     @default(0) @db.Decimal(10, 2)
+  total           Decimal     @db.Decimal(10, 2)
+  couponCode      String?     @map("coupon_code")
+  shippingAddressId String?   @map("shipping_address_id")
+  shippingAddress Address?    @relation("ShippingAddress", fields: [shippingAddressId], references: [id])
+  shippingStreet  String     @map("shipping_street")
+  shippingCity    String     @map("shipping_city")
+  shippingState   String     @map("shipping_state")
+  shippingZip     String     @map("shipping_zip")
+  trackingCode    String?    @map("tracking_code")
+  createdAt       DateTime   @default(now()) @map("created_at")
+  updatedAt       DateTime   @updatedAt @map("updated_at")
+
+  user   User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
+  items  OrderItem[]
+}
+
+model OrderItem {
+  id        String   @id @default(uuid())
+  orderId   String   @map("order_id")
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId String   @map("product_id")
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Restrict)
+  name      String
+  price     Decimal  @db.Decimal(10, 2)
+  quantity  Int
+  image     String?
+  createdAt DateTime @default(now()) @map("created_at")
+}
+
+model Post {
+  id        String   @id @default(uuid())
+  title     String
+  slug      String   @unique
+  excerpt   String?
+  content   String
+  coverImage String? @map("cover_image")
+  published Boolean  @default(false)
+  authorId  String?  @map("author_id")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+}
