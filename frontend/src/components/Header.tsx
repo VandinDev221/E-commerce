@@ -1,15 +1,23 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FiShoppingCart, FiUser, FiMenu, FiX, FiSearch, FiHeart } from 'react-icons/fi';
+import { FiShoppingCart, FiUser, FiMenu, FiX, FiSearch, FiHeart, FiMoon, FiSun } from 'react-icons/fi';
 import { useSelector, useDispatch } from 'react-redux';
 import type { RootState } from '../store';
 import { logout } from '../store/authSlice';
+import { applyTheme, getInitialTheme } from '../lib/theme';
 
 export default function Header() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    try {
+      return getInitialTheme();
+    } catch {
+      return 'light';
+    }
+  });
   const { user } = useSelector((s: RootState) => s.auth);
   const cartItems = useSelector((s: RootState) => s.cart.items);
   const dispatch = useDispatch();
@@ -17,7 +25,7 @@ export default function Header() {
   const cartCount = cartItems.reduce((n, i) => n + i.quantity, 0);
 
   return (
-    <header className="sticky top-0 z-50 border-b border-gray-200 bg-white/95 backdrop-blur">
+    <header className="sticky top-0 z-50 border-b border-gray-200 bg-white/95 backdrop-blur dark:border-gray-800 dark:bg-gray-900/90">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6">
         <Link to="/" className="text-xl font-bold text-primary-600">
           E-commerce
@@ -35,8 +43,21 @@ export default function Header() {
         <div className="flex items-center gap-2">
           <button
             type="button"
+            onClick={() => {
+              const next = theme === 'dark' ? 'light' : 'dark';
+              setTheme(next);
+              applyTheme(next);
+            }}
+            className="rounded-full p-2 text-gray-600 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800"
+            aria-label={theme === 'dark' ? 'Ativar tema claro' : 'Ativar tema escuro'}
+            title={theme === 'dark' ? 'Tema claro' : 'Tema escuro'}
+          >
+            {theme === 'dark' ? <FiSun className="h-5 w-5" /> : <FiMoon className="h-5 w-5" />}
+          </button>
+          <button
+            type="button"
             onClick={() => setSearchOpen((o) => !o)}
-            className="rounded-full p-2 text-gray-600 hover:bg-gray-100"
+            className="rounded-full p-2 text-gray-600 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800"
             aria-label="Buscar"
           >
             <FiSearch className="h-5 w-5" />
@@ -44,7 +65,7 @@ export default function Header() {
           {user && (
             <Link
               to="/profile"
-              className="rounded-full p-2 text-gray-600 hover:bg-gray-100"
+              className="rounded-full p-2 text-gray-600 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800"
               aria-label="Lista de desejos"
             >
               <FiHeart className="h-5 w-5" />
@@ -52,7 +73,7 @@ export default function Header() {
           )}
           <Link
             to="/cart"
-            className="relative rounded-full p-2 text-gray-600 hover:bg-gray-100"
+            className="relative rounded-full p-2 text-gray-600 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800"
             aria-label="Carrinho"
           >
             <FiShoppingCart className="h-5 w-5" />
@@ -68,7 +89,7 @@ export default function Header() {
               <button
                 type="button"
                 onClick={() => setMenuOpen((o) => !o)}
-                className="flex items-center gap-2 rounded-full p-2 text-gray-600 hover:bg-gray-100"
+                className="flex items-center gap-2 rounded-full p-2 text-gray-600 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800"
               >
                 <FiUser className="h-5 w-5" />
                 <span className="max-w-[100px] truncate text-sm">{user.name || user.email}</span>
@@ -79,18 +100,18 @@ export default function Header() {
                     initial={{ opacity: 0, y: -8 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -8 }}
-                    className="absolute right-0 top-full mt-1 w-48 rounded-lg border border-gray-200 bg-white py-1 shadow-lg"
+                    className="absolute right-0 top-full mt-1 w-48 rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-800 dark:bg-gray-900"
                   >
                     <Link
                       to="/profile"
-                      className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                      className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-100 dark:hover:bg-gray-800"
                       onClick={() => setMenuOpen(false)}
                     >
                       Meu perfil
                     </Link>
                     <Link
                       to="/orders"
-                      className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                      className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-100 dark:hover:bg-gray-800"
                       onClick={() => setMenuOpen(false)}
                     >
                       Meus pedidos
@@ -98,7 +119,7 @@ export default function Header() {
                     {user.role === 'ADMIN' && (
                       <Link
                         to="/admin"
-                        className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                        className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-100 dark:hover:bg-gray-800"
                         onClick={() => setMenuOpen(false)}
                       >
                         Painel admin
@@ -106,7 +127,7 @@ export default function Header() {
                     )}
                     <button
                       type="button"
-                      className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-gray-50"
+                      className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-gray-50 dark:hover:bg-gray-800"
                       onClick={() => {
                         setMenuOpen(false);
                         dispatch(logout());
@@ -129,7 +150,7 @@ export default function Header() {
 
           <button
             type="button"
-            className="rounded-lg p-2 text-gray-600 md:hidden"
+            className="rounded-lg p-2 text-gray-600 md:hidden dark:text-gray-200"
             onClick={() => setMenuOpen((o) => !o)}
             aria-label="Menu"
           >
@@ -145,38 +166,38 @@ export default function Header() {
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
-            className="border-t border-gray-200 bg-white md:hidden"
+            className="border-t border-gray-200 bg-white md:hidden dark:border-gray-800 dark:bg-gray-900"
           >
             <nav className="flex flex-col gap-1 px-4 py-3">
-              <Link to="/products" className="rounded-lg px-3 py-2 text-gray-700 hover:bg-gray-50">
+              <Link to="/products" className="rounded-lg px-3 py-2 text-gray-700 hover:bg-gray-50 dark:text-gray-100 dark:hover:bg-gray-800">
                 Produtos
               </Link>
-              <Link to="/blog" className="rounded-lg px-3 py-2 text-gray-700 hover:bg-gray-50">
+              <Link to="/blog" className="rounded-lg px-3 py-2 text-gray-700 hover:bg-gray-50 dark:text-gray-100 dark:hover:bg-gray-800">
                 Blog
               </Link>
               {user ? (
                 <>
-                  <Link to="/profile" className="rounded-lg px-3 py-2 text-gray-700 hover:bg-gray-50">
+                  <Link to="/profile" className="rounded-lg px-3 py-2 text-gray-700 hover:bg-gray-50 dark:text-gray-100 dark:hover:bg-gray-800">
                     Meu perfil
                   </Link>
-                  <Link to="/orders" className="rounded-lg px-3 py-2 text-gray-700 hover:bg-gray-50">
+                  <Link to="/orders" className="rounded-lg px-3 py-2 text-gray-700 hover:bg-gray-50 dark:text-gray-100 dark:hover:bg-gray-800">
                     Meus pedidos
                   </Link>
                   {user.role === 'ADMIN' && (
-                    <Link to="/admin" className="rounded-lg px-3 py-2 text-gray-700 hover:bg-gray-50">
+                    <Link to="/admin" className="rounded-lg px-3 py-2 text-gray-700 hover:bg-gray-50 dark:text-gray-100 dark:hover:bg-gray-800">
                       Admin
                     </Link>
                   )}
                   <button
                     type="button"
-                    className="rounded-lg px-3 py-2 text-left text-red-600 hover:bg-gray-50"
+                    className="rounded-lg px-3 py-2 text-left text-red-600 hover:bg-gray-50 dark:hover:bg-gray-800"
                     onClick={() => dispatch(logout())}
                   >
                     Sair
                   </button>
                 </>
               ) : (
-                <Link to="/login" className="rounded-lg px-3 py-2 text-primary-600 hover:bg-gray-50">
+                <Link to="/login" className="rounded-lg px-3 py-2 text-primary-600 hover:bg-gray-50 dark:hover:bg-gray-800">
                   Entrar
                 </Link>
               )}
@@ -192,7 +213,7 @@ export default function Header() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="absolute inset-x-0 top-16 border-b border-gray-200 bg-white p-4 shadow-lg"
+            className="absolute inset-x-0 top-16 border-b border-gray-200 bg-white p-4 shadow-lg dark:border-gray-800 dark:bg-gray-900"
           >
             <form
               onSubmit={(e) => {
