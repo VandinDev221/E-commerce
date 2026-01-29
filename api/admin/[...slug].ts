@@ -2,39 +2,45 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 
 /**
  * Roteamento explícito de /api/admin/* para o Express.
- * Resolve 404 em /api/admin/stats, /api/admin/users, /api/admin/orders e PATCH orders/:id/status.
+ * Prioriza query.slug (sempre preenchido pela Vercel nesta rota) para evitar 404 em PATCH.
  */
-function getPath(req: VercelRequest): string {
+function getNormalizedUrl(req: VercelRequest): string {
   const r = req as any;
-  if (r.url && typeof r.url === 'string') {
-    if (r.url.startsWith('http')) {
-      try {
-        return new URL(r.url).pathname;
-      } catch {
-        return (r.url.split('?')[0] || '').replace(/^\/api\/?/, '') || '';
-      }
-    }
-    return (r.url.split('?')[0] || '').replace(/^\/api\/?/, '') || '';
-  }
-  if (r.path) return r.path.replace(/^\/api\/?/, '');
-  if (r.pathname) return r.pathname.replace(/^\/api\/?/, '');
+  // 1) Prioridade: query.slug (ex: ['orders','uuid','status'] ou ['stats'])
   const slug = r.query?.slug;
-  const pathFromSlug = Array.isArray(slug)
-    ? slug.join('/')
-    : typeof slug === 'string'
-      ? slug
-      : '';
-  return pathFromSlug ? pathFromSlug : '';
+  if (Array.isArray(slug) && slug.length > 0) {
+    return `/api/admin/${slug.join('/')}`;
+  }
+  if (typeof slug === 'string' && slug) {
+    return `/api/admin/${slug}`;
+  }
+  // 2) req.url (path ou URL completa)
+  if (r.url && typeof r.url === 'string') {
+    const pathOnly = r.url.startsWith('http')
+      ? (() => { try { return new URL(r.url).pathname; } catch { return r.url.split('?')[0]; } })()
+      : r.url.split('?')[0];
+    if (pathOnly && pathOnly.startsWith('/api')) return pathOnly;
+    if (pathOnly) return pathOnly.startsWith('/') ? pathOnly : `/${pathOnly}`;
+  }
+  if (r.path && r.path.startsWith('/api')) return r.path;
+  if (r.pathname && r.pathname.startsWith('/api')) return r.pathname;
+  return '/api/admin';
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  const afterAdmin = getPath(req).replace(/^admin\/?/, '').replace(/^\/+/, '');
-  const normalized = `/api/admin${afterAdmin ? `/${afterAdmin}` : ''}`;
+  const normalized = getNormalizedUrl(req);
 
   try {
     Object.defineProperty(req, 'url', { value: normalized, writable: true, configurable: true });
   } catch {
     (req as any).url = normalized;
+  }
+  if ((req as any).originalUrl === undefined) {
+    try {
+      Object.defineProperty(req, 'originalUrl', { value: normalized, writable: true, configurable: true });
+    } catch {
+      (req as any).originalUrl = normalized;
+    }
   }
 
   const mod = await import('../../backend/dist/index.js');
