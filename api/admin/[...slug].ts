@@ -5,12 +5,17 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
  * evitando 404 quando o catch-all único não trata corretamente na Vercel.
  */
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  const rawUrl: string = (req as any).url ?? (req as any).path ?? '/';
+  const query = (req as any).query;
+  const slug = query?.slug;
+  // Na Vercel, rotas dinâmicas (ex: PATCH /api/admin/orders/:id/status) vêm em query.slug
+  const pathFromSlug = Array.isArray(slug) ? `/${slug.join('/')}` : typeof slug === 'string' ? `/${slug}` : '';
+  const rawUrl: string =
+    (req as any).url ?? (req as any).path ?? (req as any).pathname ?? (pathFromSlug || '/');
   let normalized = rawUrl.startsWith('/') ? rawUrl : `/${rawUrl}`;
 
   if (!normalized.startsWith('/api/admin')) {
-    // Ex: "/stats" -> "/api/admin/stats"
-    normalized = `/api/admin${normalized}`;
+    // Ex: "/stats" ou pathFromSlug "orders/xxx/status" -> "/api/admin/..."
+    normalized = pathFromSlug ? `/api/admin${pathFromSlug}` : `/api/admin${normalized}`;
   }
   (req as any).url = normalized;
 
