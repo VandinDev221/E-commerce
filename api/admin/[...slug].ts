@@ -2,29 +2,39 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 
 /**
  * Roteamento explícito de `/api/admin/*` para o backend Express.
- * Garante que GET /api/admin/stats e PATCH /api/admin/orders/:id/status funcionem na Vercel.
+ * GET /api/admin/stats e PATCH /api/admin/orders/:id/status na Vercel.
  */
-export default async function handler(req: VercelRequest, res: VercelResponse) {
-  const query = (req as any).query;
-  const slug = query?.slug;
-  // slug = ['stats'] ou ['orders', 'id', 'status'] etc.
+function getPath(req: VercelRequest): string {
+  const r = req as any;
+  // URL completa (ex: PATCH na Vercel) -> extrair pathname
+  if (r.url && typeof r.url === 'string') {
+    if (r.url.startsWith('http')) {
+      try {
+        return new URL(r.url).pathname;
+      } catch {
+        return r.url.split('?')[0] || '/api/admin';
+      }
+    }
+    return r.url.split('?')[0] || '/api/admin';
+  }
+  if (r.path) return r.path;
+  if (r.pathname) return r.pathname;
+  // Fallback: montar a partir de query.slug (GET costuma vir assim)
+  const slug = r.query?.slug;
   const pathFromSlug = Array.isArray(slug)
     ? `/${slug.join('/')}`
     : typeof slug === 'string'
       ? `/${slug}`
       : '';
+  return pathFromSlug ? `/api/admin${pathFromSlug}` : '/api/admin';
+}
 
-  const rawUrl: string =
-    (req as any).url ??
-    (req as any).path ??
-    (req as any).pathname ??
-    (pathFromSlug ? `/api/admin${pathFromSlug}` : '/api/admin');
-
-  let normalized = rawUrl.startsWith('/') ? rawUrl : `/${rawUrl}`;
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+  let normalized = getPath(req);
+  if (!normalized.startsWith('/')) normalized = `/${normalized}`;
   if (!normalized.startsWith('/api/admin')) {
-    normalized = pathFromSlug ? `/api/admin${pathFromSlug}` : '/api/admin';
+    normalized = normalized === '/' ? '/api/admin' : `/api/admin${normalized}`;
   }
-
   (req as any).url = normalized;
 
   const mod = await import('../../backend/dist/index.js');
