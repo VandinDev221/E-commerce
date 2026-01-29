@@ -35,7 +35,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (!normalized.startsWith('/api/admin')) {
     normalized = normalized === '/' ? '/api/admin' : `/api/admin${normalized}`;
   }
-  (req as any).url = normalized;
+  // Garantir que o Express veja a URL (pode ser read-only no req da Vercel)
+  try {
+    Object.defineProperty(req, 'url', { value: normalized, writable: true, configurable: true });
+  } catch {
+    (req as any).url = normalized;
+  }
 
   const mod = await import('../../backend/dist/index.js');
   const app = (mod as { default: (req: any, res: any) => any }).default;
