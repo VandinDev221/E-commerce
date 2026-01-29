@@ -23,6 +23,9 @@ import { couponRoutes } from './routes/coupons.js';
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+// Necessário atrás de proxy (ex: Vercel): evita ValidationError do express-rate-limit com X-Forwarded-For
+app.set('trust proxy', 1);
+
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 100,
