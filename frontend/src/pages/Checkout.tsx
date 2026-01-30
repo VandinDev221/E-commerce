@@ -143,9 +143,9 @@ export default function Checkout() {
   return (
     <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
       <h1 className="text-2xl font-bold text-gray-900">Checkout</h1>
-      <div className="mt-8 flex flex-col gap-8 lg:flex-row">
-        {/* Resumo em cima no mobile; à direita no desktop */}
-        <div className="order-1 w-full shrink-0 lg:order-2 lg:w-80">
+      <div className="mt-8 flex flex-col gap-8 md:flex-row">
+        {/* Resumo em cima no mobile/tablet; à direita no desktop (md+) */}
+        <div className="order-1 w-full shrink-0 md:order-2 md:w-80">
           <div className="card sticky top-24 p-6">
             <h3 className="font-semibold text-gray-900">Resumo</h3>
             <ul className="mt-4 space-y-2 text-sm">
@@ -178,8 +178,8 @@ export default function Checkout() {
             </div>
           </div>
         </div>
-        {/* Formulário embaixo do resumo no mobile; à esquerda no desktop */}
-        <div className="order-2 min-w-0 flex-1 lg:order-1">
+        {/* Formulário embaixo do resumo no mobile; à esquerda no desktop (md+) */}
+        <div className="order-2 min-w-0 flex-1 md:order-1">
           {step === 1 && (
             <form onSubmit={handle1(onStep1)} className="card space-y-4 p-6">
               <h2 className="text-lg font-semibold">Endereço de entrega</h2>
