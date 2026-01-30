@@ -143,8 +143,43 @@ export default function Checkout() {
   return (
     <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
       <h1 className="text-2xl font-bold text-gray-900">Checkout</h1>
-      <div className="mt-8 flex gap-8">
-        <div className="flex-1">
+      <div className="mt-8 flex flex-col gap-8 lg:flex-row">
+        {/* Resumo em cima no mobile; à direita no desktop */}
+        <div className="order-1 w-full shrink-0 lg:order-2 lg:w-80">
+          <div className="card sticky top-24 p-6">
+            <h3 className="font-semibold text-gray-900">Resumo</h3>
+            <ul className="mt-4 space-y-2 text-sm">
+              {items.map((i) => (
+                <li key={i.id} className="flex justify-between">
+                  <span className="line-clamp-1">{i.name} x{i.quantity}</span>
+                  <span>R$ {(i.price * i.quantity).toFixed(2).replace('.', ',')}</span>
+                </li>
+              ))}
+            </ul>
+            <div className="mt-4 space-y-1 border-t border-gray-200 pt-4 text-sm">
+              <div className="flex justify-between">
+                <span>Subtotal</span>
+                <span>R$ {subtotal.toFixed(2).replace('.', ',')}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Frete</span>
+                <span>R$ {shippingCost.toFixed(2).replace('.', ',')}</span>
+              </div>
+              {discount > 0 && (
+                <div className="flex justify-between text-green-600">
+                  <span>Desconto</span>
+                  <span>- R$ {discount.toFixed(2).replace('.', ',')}</span>
+                </div>
+              )}
+              <div className="flex justify-between font-bold">
+                <span>Total</span>
+                <span>R$ {total.toFixed(2).replace('.', ',')}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        {/* Formulário embaixo do resumo no mobile; à esquerda no desktop */}
+        <div className="order-2 min-w-0 flex-1 lg:order-1">
           {step === 1 && (
             <form onSubmit={handle1(onStep1)} className="card space-y-4 p-6">
               <h2 className="text-lg font-semibold">Endereço de entrega</h2>
@@ -213,39 +248,6 @@ export default function Checkout() {
               </button>
             </form>
           )}
-        </div>
-        <div className="w-80">
-          <div className="card sticky top-24 p-6">
-            <h3 className="font-semibold text-gray-900">Resumo</h3>
-            <ul className="mt-4 space-y-2 text-sm">
-              {items.map((i) => (
-                <li key={i.id} className="flex justify-between">
-                  <span className="line-clamp-1">{i.name} x{i.quantity}</span>
-                  <span>R$ {(i.price * i.quantity).toFixed(2).replace('.', ',')}</span>
-                </li>
-              ))}
-            </ul>
-            <div className="mt-4 space-y-1 border-t border-gray-200 pt-4 text-sm">
-              <div className="flex justify-between">
-                <span>Subtotal</span>
-                <span>R$ {subtotal.toFixed(2).replace('.', ',')}</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Frete</span>
-                <span>R$ {shippingCost.toFixed(2).replace('.', ',')}</span>
-              </div>
-              {discount > 0 && (
-                <div className="flex justify-between text-green-600">
-                  <span>Desconto</span>
-                  <span>- R$ {discount.toFixed(2).replace('.', ',')}</span>
-                </div>
-              )}
-              <div className="flex justify-between font-bold">
-                <span>Total</span>
-                <span>R$ {total.toFixed(2).replace('.', ',')}</span>
-              </div>
-            </div>
-          </div>
         </div>
       </div>
     </div>
