@@ -92,14 +92,26 @@ router.get('/products/:id', async (req, res, next) => {
   try {
     const product = await prisma.product.findUnique({
       where: { id: req.params.id },
-      include: { category: true },
+      include: { category: { select: { id: true, name: true, slug: true } } },
     });
     if (!product) throw new AppError('Produto não encontrado', 404);
+    // Objeto plano para evitar 500 por Decimal/circular na serialização JSON (ex: Vercel)
     res.json({
-      ...product,
-      images: normalizeProductImages(product.images, product.name),
+      id: product.id,
+      name: product.name,
+      slug: product.slug,
+      description: product.description,
       price: Number(product.price),
       compareAtPrice: product.compareAtPrice ? Number(product.compareAtPrice) : null,
+      stock: product.stock,
+      sku: product.sku,
+      categoryId: product.categoryId,
+      category: product.category,
+      images: normalizeProductImages(product.images, product.name),
+      featured: product.featured,
+      published: product.published,
+      createdAt: product.createdAt.toISOString(),
+      updatedAt: product.updatedAt.toISOString(),
     });
   } catch (e) {
     next(e);
