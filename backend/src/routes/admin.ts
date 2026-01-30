@@ -97,23 +97,29 @@ router.get('/products/:id', async (req, res, next) => {
       include: { category: { select: { id: true, name: true, slug: true } } },
     });
     if (!product) throw new AppError('Produto não encontrado', 404);
-    // Objeto plano para evitar 500 por Decimal/circular na serialização JSON (ex: Vercel)
+    // Valores 100% serializáveis para evitar 500 na Vercel (Decimal, Date, circular)
+    const images = Array.isArray(product.images) ? product.images : [];
+    const category = product.category
+      ? { id: product.category.id, name: product.category.name, slug: product.category.slug }
+      : null;
+    const createdAt = product.createdAt instanceof Date ? product.createdAt.toISOString() : String(product.createdAt);
+    const updatedAt = product.updatedAt instanceof Date ? product.updatedAt.toISOString() : String(product.updatedAt);
     res.json({
       id: product.id,
       name: product.name,
       slug: product.slug,
-      description: product.description,
+      description: product.description ?? null,
       price: Number(product.price),
-      compareAtPrice: product.compareAtPrice ? Number(product.compareAtPrice) : null,
+      compareAtPrice: product.compareAtPrice != null ? Number(product.compareAtPrice) : null,
       stock: product.stock,
-      sku: product.sku,
-      categoryId: product.categoryId,
-      category: product.category,
-      images: normalizeProductImages(product.images, product.name),
-      featured: product.featured,
-      published: product.published,
-      createdAt: product.createdAt.toISOString(),
-      updatedAt: product.updatedAt.toISOString(),
+      sku: product.sku ?? null,
+      categoryId: product.categoryId ?? null,
+      category,
+      images: images.length ? images : [getDefaultImageUrl(product.name)],
+      featured: Boolean(product.featured),
+      published: Boolean(product.published),
+      createdAt,
+      updatedAt,
     });
   } catch (e) {
     next(e);
