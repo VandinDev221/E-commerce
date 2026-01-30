@@ -25,7 +25,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const mod = await import('../../../../backend/dist/index.js');
+    const mod = await import('../../../backend/dist/index.js');
     const app = (mod as { default: (req: any, res: any) => any }).default;
     return app(req, res);
   } catch (err: any) {
