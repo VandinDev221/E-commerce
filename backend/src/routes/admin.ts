@@ -90,8 +90,10 @@ router.post('/products', upload.array('images', 10), async (req: AuthRequest, re
 
 router.get('/products/:id', async (req, res, next) => {
   try {
+    const id = req.params?.id;
+    if (!id) throw new AppError('ID do produto ausente', 400);
     const product = await prisma.product.findUnique({
-      where: { id: req.params.id },
+      where: { id },
       include: { category: { select: { id: true, name: true, slug: true } } },
     });
     if (!product) throw new AppError('Produto não encontrado', 404);
