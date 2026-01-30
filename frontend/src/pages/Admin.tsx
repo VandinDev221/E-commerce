@@ -563,6 +563,10 @@ type AdminOrder = {
   total: number;
   createdAt: string;
   items: AdminOrderItem[];
+  shippingStreet?: string;
+  shippingCity?: string;
+  shippingState?: string;
+  shippingZip?: string;
 };
 
 export function AdminOrders() {
@@ -617,6 +621,7 @@ export function AdminOrders() {
                 <th className="px-4 py-2 text-left font-semibold text-gray-700">Data</th>
                 <th className="px-4 py-2 text-left font-semibold text-gray-700">Status</th>
                 <th className="px-4 py-2 text-left font-semibold text-gray-700">Total</th>
+                <th className="px-4 py-2 text-left font-semibold text-gray-700">Entrega</th>
                 <th className="px-4 py-2 text-left font-semibold text-gray-700">Itens</th>
                 <th className="px-4 py-2 text-right font-semibold text-gray-700">Ações</th>
               </tr>
@@ -632,6 +637,11 @@ export function AdminOrders() {
                     </span>
                   </td>
                   <td className="px-4 py-2">R$ {Number(o.total).toFixed(2).replace('.', ',')}</td>
+                  <td className="max-w-[180px] px-4 py-2 text-xs text-gray-600">
+                    {o.shippingStreet || o.shippingZip
+                      ? [o.shippingStreet, o.shippingCity && o.shippingState ? `${o.shippingCity} - ${o.shippingState}` : o.shippingCity || o.shippingState, o.shippingZip].filter(Boolean).join(', ')
+                      : '-'}
+                  </td>
                   <td className="px-4 py-2">
                     {o.items?.length
                       ? o.items.map((i) => `${i.name} (${i.quantity}x)`).join(', ')
