@@ -11,16 +11,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return;
   }
   const normalized = `/api/admin/products/${id}`;
+  const r = req as any;
 
   try {
-    Object.defineProperty(req, 'url', { value: normalized, writable: true, configurable: true });
+    Object.defineProperty(r, 'url', { value: normalized, writable: true, configurable: true });
   } catch {
-    (req as any).url = normalized;
+    r.url = normalized;
   }
   try {
-    Object.defineProperty(req, 'originalUrl', { value: normalized, writable: true, configurable: true });
+    Object.defineProperty(r, 'originalUrl', { value: normalized, writable: true, configurable: true });
   } catch {
-    (req as any).originalUrl = normalized;
+    r.originalUrl = normalized;
+  }
+  // Garantir params para o Express (router /products/:id)
+  if (!r.params || typeof r.params !== 'object') {
+    try {
+      Object.defineProperty(r, 'params', { value: { id }, writable: true, configurable: true });
+    } catch {
+      r.params = { id };
+    }
+  } else {
+    r.params.id = id;
   }
 
   const mod = await import('../../../../backend/dist/index.js');
