@@ -8,12 +8,25 @@ export const api = axios.create({
   headers: { 'Content-Type': 'application/json' },
 });
 
+function getErrorMessage(err: any): string {
+  if (!err) return 'Erro de conexão';
+  const data = err.response?.data;
+  if (data?.error != null) {
+    if (typeof data.error === 'string') return data.error;
+    if (typeof data.error === 'object') return (data.error as any).message ?? JSON.stringify(data.error);
+  }
+  if (data?.message != null && typeof data.message === 'string') return data.message;
+  const msg = err.message;
+  if (typeof msg === 'string' && msg && msg !== '[object Object]') return msg;
+  return 'Erro de conexão';
+}
+
 api.interceptors.response.use(
   (res) => res,
   (err) => {
     // 401 em /auth/me é esperado quando não há sessão ou token expirado; tratado no authSlice
     const isAuthMe = err.config?.url === '/auth/me' && err.response?.status === 401;
-    const message = isAuthMe ? 'Não autenticado' : (err.response?.data?.error || err.message || 'Erro de conexão');
+    const message = isAuthMe ? 'Não autenticado' : getErrorMessage(err);
     return Promise.reject(new Error(message));
   }
 );

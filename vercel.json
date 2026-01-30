@@ -18,6 +18,10 @@
       "memory": 2048,
       "maxDuration": 10
     },
+    "api/admin/products/[id].ts": {
+      "memory": 2048,
+      "maxDuration": 10
+    },
     "api/shipping/[...slug].ts": {
       "memory": 2048,
       "maxDuration": 10
