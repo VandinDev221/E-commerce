@@ -218,6 +218,25 @@ router.get('/orders', async (_req, res, next) => {
   }
 });
 
+router.get('/orders/:id', async (req, res, next) => {
+  try {
+    const order = await prisma.order.findUnique({
+      where: { id: req.params.id },
+      include: { items: true, user: { select: { name: true, email: true } } },
+    });
+    if (!order) throw new AppError('Pedido não encontrado', 404);
+    res.json({
+      ...order,
+      subtotal: Number(order.subtotal),
+      shippingCost: Number(order.shippingCost),
+      discount: Number(order.discount),
+      total: Number(order.total),
+    });
+  } catch (e) {
+    next(e);
+  }
+});
+
 router.patch('/orders/:id/status', async (req, res, next) => {
   try {
     const { status } = z.object({

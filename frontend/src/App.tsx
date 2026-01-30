@@ -24,6 +24,7 @@ import Admin, {
   AdminUsers,
   AdminCoupons,
 } from './pages/Admin';
+import ShippingLabel from './pages/ShippingLabel';
 import Blog from './pages/Blog';
 import BlogPost from './pages/BlogPost';
 
@@ -90,6 +91,7 @@ export default function App() {
           <Route path="products/new" element={<AdminProductForm />} />
           <Route path="products/:id" element={<AdminProductForm />} />
           <Route path="orders" element={<AdminOrders />} />
+          <Route path="orders/:id/label" element={<ShippingLabel />} />
           <Route path="users" element={<AdminUsers />} />
           <Route path="coupons" element={<AdminCoupons />} />
         </Route>

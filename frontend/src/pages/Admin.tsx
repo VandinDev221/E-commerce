@@ -1,6 +1,6 @@
 import { Outlet, Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useEffect, useState } from 'react';
-import { FiPackage, FiShoppingBag, FiUsers, FiTag, FiBarChart2, FiEdit2, FiTrash2, FiDollarSign, FiPlus, FiChevronLeft, FiChevronRight } from 'react-icons/fi';
+import { FiPackage, FiShoppingBag, FiUsers, FiTag, FiBarChart2, FiEdit2, FiTrash2, FiDollarSign, FiPlus, FiChevronLeft, FiChevronRight, FiPrinter } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 import { api } from '../api/client';
 import { formatAddressLine } from '../utils/address';
@@ -649,18 +649,30 @@ export function AdminOrders() {
                       : '-'}
                   </td>
                   <td className="px-4 py-2 text-right">
-                    <select
-                      value={o.status}
-                      disabled={updatingId === o.id}
-                      onChange={(e) => updateStatus(o.id, e.target.value)}
-                      className="rounded border border-gray-300 px-2 py-1 text-xs disabled:opacity-50"
-                    >
-                      {ORDER_STATUSES.map((s) => (
-                        <option key={s} value={s}>
-                          {ORDER_STATUS_LABELS[s]}
-                        </option>
-                      ))}
-                    </select>
+                    <div className="flex items-center justify-end gap-2">
+                      <a
+                        href={`/admin/orders/${o.id}/label`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 rounded border border-gray-300 bg-white px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
+                        title="Imprimir etiqueta de entrega"
+                      >
+                        <FiPrinter className="h-3.5 w-3.5" />
+                        Etiqueta
+                      </a>
+                      <select
+                        value={o.status}
+                        disabled={updatingId === o.id}
+                        onChange={(e) => updateStatus(o.id, e.target.value)}
+                        className="rounded border border-gray-300 px-2 py-1 text-xs disabled:opacity-50"
+                      >
+                        {ORDER_STATUSES.map((s) => (
+                          <option key={s} value={s}>
+                            {ORDER_STATUS_LABELS[s]}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
                   </td>
                 </tr>
               ))}
