@@ -1,4 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import path from 'path';
+import { pathToFileURL } from 'url';
 
 /**
  * Rota explícita para GET/PUT/DELETE /api/admin/products/:id.
@@ -24,8 +26,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       (req as any).originalUrl = normalized;
     }
   }
+  // Garantir que o Express veja o :id (na Vercel req.params pode não ser preenchido pelo routing)
+  (req as any).params = (req as any).params || {};
+  (req as any).params.id = id;
 
-  const mod = await import('../../../../backend/dist/index.js');
-  const app = (mod as { default: (req: any, res: any) => any }).default;
-  return app(req, res);
+  try {
+    // Na Vercel, caminho relativo pode falhar; usar cwd + backend/dist
+    const backendPath = path.join(process.cwd(), 'backend', 'dist', 'index.js');
+    const mod = await import(pathToFileURL(backendPath).href);
+    const app = (mod as { default: (req: any, res: any) => any }).default;
+    return app(req, res);
+  } catch (relErr: any) {
+    // Fallback: import relativo (funciona em dev local)
+    try {
+      const mod = await import('../../../../backend/dist/index.js');
+      const app = (mod as { default: (req: any, res: any) => any }).default;
+      return app(req, res);
+    } catch (err: any) {
+      console.error('[api/admin/products/[id]]', err);
+      return res.status(500).json({
+        error: 'Erro ao carregar o backend',
+        ...(process.env.NODE_ENV !== 'production' && { detail: err?.message || String(err) }),
+      });
+    }
+  }
 }
