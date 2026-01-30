@@ -7,15 +7,15 @@
   ],
   "functions": {
     "api/[[...slug]].ts": {
-      "memory": 3008,
+      "memory": 2048,
       "maxDuration": 10
     },
     "api/admin/[...slug].ts": {
-      "memory": 3008,
+      "memory": 2048,
       "maxDuration": 10
     },
     "api/admin/orders/[id]/status.ts": {
-      "memory": 3008,
+      "memory": 2048,
       "maxDuration": 10
     }
   }
