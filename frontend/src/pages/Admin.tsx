@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { FiPackage, FiShoppingBag, FiUsers, FiTag, FiBarChart2, FiEdit2, FiTrash2, FiDollarSign, FiPlus, FiChevronLeft, FiChevronRight } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 import { api } from '../api/client';
+import { formatAddressLine } from '../utils/address';
 
 const nav = [
   { to: '/admin', icon: FiBarChart2, label: 'Dashboard' },
@@ -639,7 +640,7 @@ export function AdminOrders() {
                   <td className="px-4 py-2">R$ {Number(o.total).toFixed(2).replace('.', ',')}</td>
                   <td className="max-w-[180px] px-4 py-2 text-xs text-gray-600">
                     {o.shippingStreet || o.shippingZip
-                      ? [o.shippingStreet, o.shippingCity && o.shippingState ? `${o.shippingCity} - ${o.shippingState}` : o.shippingCity || o.shippingState, o.shippingZip].filter(Boolean).join(', ')
+                      ? formatAddressLine(o.shippingStreet ?? '', o.shippingCity ?? '', o.shippingState ?? '', o.shippingZip ?? '')
                       : '-'}
                   </td>
                   <td className="px-4 py-2">

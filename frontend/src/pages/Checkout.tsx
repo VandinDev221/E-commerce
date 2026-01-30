@@ -9,6 +9,8 @@ import { api } from '../api/client';
 import type { RootState } from '../store';
 import { fetchCart } from '../store/cartSlice';
 
+import { formatAddressLine } from '../utils/address';
+
 const step1Schema = z.object({
   zipCode: z.string().min(8, 'CEP inválido'),
   street: z.string().min(1, 'Obrigatório'),
@@ -33,6 +35,8 @@ export default function Checkout() {
   const { items, subtotal } = useSelector((s: RootState) => s.cart);
   const [step, setStep] = useState(1);
   const [shippingCost, setShippingCost] = useState(15.9);
+  const [shippingOptions, setShippingOptions] = useState<{ name: string; price: number; days: string }[]>([]);
+  const [selectedOptionIndex, setSelectedOptionIndex] = useState(0);
   const [discount, setDiscount] = useState(0);
   const [couponValid, setCouponValid] = useState<boolean | null>(null);
 
@@ -73,6 +77,26 @@ export default function Checkout() {
       .catch(() => {});
   }, [zipCode, setValue1]);
 
+  // Buscar opções de entrega quando CEP estiver válido
+  useEffect(() => {
+    if (!zipCode || zipCode.replace(/\D/g, '').length < 8) {
+      setShippingOptions([]);
+      return;
+    }
+    api
+      .post('/shipping/calculate', { zipCode: zipCode.replace(/\D/g, '') })
+      .then((res) => {
+        const opts = res.data.options ?? [];
+        setShippingOptions(opts);
+        setSelectedOptionIndex(0);
+        setShippingCost(opts[0]?.price ?? 15.9);
+      })
+      .catch(() => {
+        setShippingOptions([]);
+        setShippingCost(15.9);
+      });
+  }, [zipCode]);
+
   const couponCode = watch2('couponCode');
   useEffect(() => {
     if (!couponCode?.trim()) {
@@ -92,12 +116,14 @@ export default function Checkout() {
       });
   }, [couponCode, subtotal]);
 
-  const onStep1 = (data: Step1Form) => {
-    api
-      .post('/shipping/calculate', { zipCode: data.zipCode.replace(/\D/g, '') })
-      .then((res) => setShippingCost(res.data.options?.[0]?.price ?? 15.9))
-      .catch(() => setShippingCost(15.9))
-      .finally(() => setStep(2));
+  const onStep1 = () => {
+    setStep(2);
+  };
+
+  const onSelectShippingOption = (index: number) => {
+    setSelectedOptionIndex(index);
+    const price = shippingOptions[index]?.price ?? 15.9;
+    setShippingCost(price);
   };
 
   const total = subtotal + shippingCost - discount;
@@ -221,6 +247,27 @@ export default function Checkout() {
                   {err1.state && <p className="mt-1 text-sm text-red-600">{err1.state.message}</p>}
                 </div>
               </div>
+              {shippingOptions.length > 0 && (
+                <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+                  <label className="block text-sm font-medium text-gray-700">Opção de entrega</label>
+                  <div className="mt-2 space-y-2">
+                    {shippingOptions.map((opt, i) => (
+                      <label key={i} className="flex cursor-pointer items-center gap-3 rounded border border-gray-200 bg-white p-3 has-[:checked]:border-primary-500 has-[:checked]:ring-1 has-[:checked]:ring-primary-500">
+                        <input
+                          type="radio"
+                          name="shippingOption"
+                          checked={selectedOptionIndex === i}
+                          onChange={() => onSelectShippingOption(i)}
+                          className="h-4 w-4 text-primary"
+                        />
+                        <span className="flex-1 font-medium text-gray-900">{opt.name}</span>
+                        <span className="text-sm text-gray-600">{opt.days}</span>
+                        <span className="font-semibold text-gray-900">R$ {opt.price.toFixed(2).replace('.', ',')}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
               <button type="submit" className="btn-primary w-full">
                 Continuar
               </button>
@@ -229,6 +276,12 @@ export default function Checkout() {
           {step === 2 && (
             <form onSubmit={handle2(onStep2)} className="card space-y-4 p-6">
               <h2 className="text-lg font-semibold">Pagamento</h2>
+              <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm">
+                <span className="font-medium text-gray-700">Endereço de entrega: </span>
+                <span className="text-gray-900">
+                  {formatAddressLine(watch1('street'), watch1('city'), watch1('state'), watch1('zipCode'))}
+                </span>
+              </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700">Forma de pagamento</label>
                 <select {...reg2('paymentMethod')} className="input mt-1">
