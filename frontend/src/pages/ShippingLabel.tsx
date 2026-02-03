@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
-import { formatAddressLine } from '../utils/address';
+import { LABEL_STORE } from '../constants';
 
 type OrderForLabel = {
   id: string;
@@ -11,7 +11,9 @@ type OrderForLabel = {
   shippingCity: string;
   shippingState: string;
   shippingZip: string;
+  createdAt: string;
   user?: { name: string | null; email: string } | null;
+  items?: { name: string; quantity: number }[];
 };
 
 export default function ShippingLabel() {
@@ -53,13 +55,24 @@ export default function ShippingLabel() {
     );
   }
 
-  const recipientName = order.user?.name || order.user?.email || 'Cliente';
-  const addressLine = formatAddressLine(
-    order.shippingStreet,
-    order.shippingCity,
-    order.shippingState,
-    order.shippingZip
-  );
+  const NOME_CLIENTE = order.user?.name || order.user?.email || 'Cliente';
+  const CPF_CLIENTE = '-';
+  const TELEFONE_CLIENTE = '-';
+  const RUA = order.shippingStreet;
+  const NUMERO = '-';
+  const COMPLEMENTO = '-';
+  const BAIRRO = '-';
+  const CIDADE = order.shippingCity;
+  const UF = order.shippingState;
+  const CEP = (order.shippingZip || '').replace(/\D/g, '').replace(/(\d{5})(\d{3})/, '$1-$2');
+  const NUMERO_PEDIDO = order.orderNumber;
+  const DATA_PEDIDO = new Date(order.createdAt).toLocaleString('pt-BR');
+  const QTD_ITENS = order.items?.reduce((s, i) => s + i.quantity, 0) ?? 0;
+  const PESO = '-';
+  const TRANSPORTADORA = '-';
+  const TIPO_ENVIO = '-';
+  const CODIGO_RASTREIO = order.trackingCode || '-';
+  const OBSERVACOES = '-';
 
   return (
     <div className="p-6">
@@ -75,25 +88,52 @@ export default function ShippingLabel() {
         </button>
       </div>
 
-      <div id="shipping-label" className="shipping-label rounded-lg border-2 border-gray-800 bg-white p-6 font-sans print:border-2 print:shadow-none">
-        <div className="mb-4 border-b border-gray-300 pb-3">
-          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Destinatário</p>
-          <p className="mt-1 text-lg font-bold text-gray-900">{recipientName}</p>
-        </div>
-        <div className="mb-4 border-b border-gray-300 pb-3">
-          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Endereço de entrega</p>
-          <p className="mt-1 text-base font-medium text-gray-900">{addressLine}</p>
-        </div>
-        <div className="mb-2 flex flex-wrap gap-4 text-sm">
-          <span>
-            <strong className="text-gray-600">Pedido:</strong> {order.orderNumber}
-          </span>
-          {order.trackingCode && (
-            <span>
-              <strong className="text-gray-600">Rastreio:</strong> {order.trackingCode}
-            </span>
-          )}
-        </div>
+      <div id="shipping-label" className="shipping-label max-w-[10cm] rounded-lg border-2 border-gray-800 bg-white p-4 font-sans text-sm print:border-2 print:shadow-none">
+        <h2 className="mb-3 border-b border-gray-400 pb-2 text-center text-base font-bold uppercase tracking-wide">
+          📦 Etiqueta de envio
+        </h2>
+
+        <section className="mb-3 border-b border-gray-300 pb-2">
+          <p className="text-xs font-bold uppercase text-gray-600">Dados do remetente</p>
+          <p><strong>Loja:</strong> {LABEL_STORE.NOME_LOJA}</p>
+          {LABEL_STORE.CNPJ_LOJA && <p><strong>CNPJ/CPF:</strong> {LABEL_STORE.CNPJ_LOJA}</p>}
+          {LABEL_STORE.ENDERECO_LOJA && <p><strong>Endereço:</strong> {LABEL_STORE.ENDERECO_LOJA}</p>}
+        </section>
+
+        <section className="mb-3 border-b border-gray-300 pb-2">
+          <p className="text-xs font-bold uppercase text-gray-600">Dados do destinatário</p>
+          <p><strong>Cliente:</strong> {NOME_CLIENTE}</p>
+          <p><strong>CPF:</strong> {CPF_CLIENTE}</p>
+          <p><strong>Telefone:</strong> {TELEFONE_CLIENTE}</p>
+          <p className="mt-1 font-medium">Endereço:</p>
+          <p>{RUA}{NUMERO !== '-' ? `, ${NUMERO}` : ''}{COMPLEMENTO !== '-' ? ` – ${COMPLEMENTO}` : ''}</p>
+          <p>{BAIRRO !== '-' ? `${BAIRRO} – ` : ''}{CIDADE} / {UF}</p>
+          <p>CEP: {CEP}</p>
+        </section>
+
+        <section className="mb-3 border-b border-gray-300 pb-2">
+          <p className="text-xs font-bold uppercase text-gray-600">Informações do pedido</p>
+          <p><strong>Plataforma:</strong> Loja</p>
+          <p><strong>Pedido:</strong> {NUMERO_PEDIDO}</p>
+          <p><strong>Data:</strong> {DATA_PEDIDO}</p>
+          <p><strong>Quantidade de itens:</strong> {QTD_ITENS}</p>
+          <p><strong>Peso:</strong> {PESO} kg</p>
+        </section>
+
+        <section className="mb-3 border-b border-gray-300 pb-2">
+          <p className="text-xs font-bold uppercase text-gray-600">Envio</p>
+          <p><strong>Transportadora:</strong> {TRANSPORTADORA}</p>
+          <p><strong>Modalidade:</strong> {TIPO_ENVIO}</p>
+          <p><strong>Código de rastreamento:</strong></p>
+          <p className="font-mono font-semibold">{CODIGO_RASTREIO}</p>
+        </section>
+
+        {OBSERVACOES !== '-' && (
+          <section className="mb-2">
+            <p className="text-xs font-bold uppercase text-gray-600">Observações</p>
+            <p>{OBSERVACOES}</p>
+          </section>
+        )}
       </div>
 
       <style>{`
@@ -110,6 +150,7 @@ export default function ShippingLabel() {
             padding: 0.5cm;
             border: 2px solid #000;
             box-shadow: none;
+            font-size: 11pt;
           }
         }
       `}</style>
