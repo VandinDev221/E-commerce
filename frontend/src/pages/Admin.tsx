@@ -650,16 +650,14 @@ export function AdminOrders() {
                   </td>
                   <td className="px-4 py-2 text-right">
                     <div className="flex items-center justify-end gap-2">
-                      <a
-                        href={`/admin/orders/${o.id}/label`}
-                        target="_blank"
-                        rel="noopener noreferrer"
+                      <Link
+                        to={`/admin/orders/${o.id}/label`}
                         className="inline-flex items-center gap-1 rounded border border-gray-300 bg-white px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
                         title="Imprimir etiqueta de entrega"
                       >
                         <FiPrinter className="h-3.5 w-3.5" />
                         Etiqueta
-                      </a>
+                      </Link>
                       <select
                         value={o.status}
                         disabled={updatingId === o.id}
