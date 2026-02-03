@@ -571,6 +571,7 @@ type AdminOrder = {
 };
 
 export function AdminOrders() {
+  const navigate = useNavigate();
   const [orders, setOrders] = useState<AdminOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
@@ -650,14 +651,15 @@ export function AdminOrders() {
                   </td>
                   <td className="px-4 py-2 text-right">
                     <div className="flex items-center justify-end gap-2">
-                      <Link
-                        to={`/admin/orders/${o.id}/label`}
+                      <button
+                        type="button"
+                        onClick={() => navigate(`/admin/orders/${o.id}/label`)}
                         className="inline-flex items-center gap-1 rounded border border-gray-300 bg-white px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
                         title="Imprimir etiqueta de entrega"
                       >
                         <FiPrinter className="h-3.5 w-3.5" />
                         Etiqueta
-                      </Link>
+                      </button>
                       <select
                         value={o.status}
                         disabled={updatingId === o.id}
