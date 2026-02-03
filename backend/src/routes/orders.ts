@@ -21,6 +21,8 @@ const checkoutSchema = z.object({
   shippingCity: z.string().min(1),
   shippingState: z.string().min(1),
   shippingZip: z.string().min(1),
+  shippingCpf: z.string().optional(),
+  shippingPhone: z.string().optional(),
   paymentMethod: z.enum(['CARD', 'PIX', 'BOLETO']),
   couponCode: z.string().optional(),
   shippingCost: z.number().min(0).default(0),
@@ -155,6 +157,8 @@ router.post('/', async (req: AuthRequest, res, next) => {
         shippingCity: body.shippingCity,
         shippingState: body.shippingState,
         shippingZip: body.shippingZip,
+        ...(body.shippingCpf != null && body.shippingCpf !== '' && { shippingCpf: body.shippingCpf.replace(/\D/g, '') }),
+        ...(body.shippingPhone != null && body.shippingPhone !== '' && { shippingPhone: body.shippingPhone.replace(/\D/g, '') }),
         items: {
           create: body.items.map((i) => ({
             productId: i.productId,

@@ -11,6 +11,9 @@ import { fetchCart } from '../store/cartSlice';
 
 import { formatAddressLine } from '../utils/address';
 
+const cpfRegex = /^\d{11}$/;
+const phoneRegex = /^\d{10,11}$/;
+
 const step1Schema = z.object({
   zipCode: z.string().min(8, 'CEP inválido'),
   street: z.string().min(1, 'Obrigatório'),
@@ -19,6 +22,8 @@ const step1Schema = z.object({
   neighborhood: z.string().min(1, 'Obrigatório'),
   city: z.string().min(1, 'Obrigatório'),
   state: z.string().min(1, 'Obrigatório'),
+  cpf: z.string().optional().refine((v) => !v || cpfRegex.test((v || '').replace(/\D/g, '')), 'CPF deve ter 11 dígitos'),
+  phone: z.string().optional().refine((v) => !v || phoneRegex.test((v || '').replace(/\D/g, '')), 'Telefone deve ter 10 ou 11 dígitos'),
 });
 const step2Schema = z.object({
   paymentMethod: z.enum(['CARD', 'PIX', 'BOLETO']),
@@ -141,6 +146,8 @@ export default function Checkout() {
       shippingCity: watch1('city'),
       shippingState: watch1('state'),
       shippingZip: watch1('zipCode').replace(/\D/g, ''),
+      shippingCpf: watch1('cpf')?.replace(/\D/g, '') || undefined,
+      shippingPhone: watch1('phone')?.replace(/\D/g, '') || undefined,
       paymentMethod: data.paymentMethod,
       couponCode: data.couponCode?.trim() || undefined,
       shippingCost,
@@ -245,6 +252,46 @@ export default function Checkout() {
                   <label className="block text-sm font-medium text-gray-700">Estado</label>
                   <input {...reg1('state')} className="input mt-1" />
                   {err1.state && <p className="mt-1 text-sm text-red-600">{err1.state.message}</p>}
+                </div>
+              </div>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">CPF</label>
+                  <input
+                    {...reg1('cpf')}
+                    value={watch1('cpf') ?? ''}
+                    className="input mt-1"
+                    placeholder="000.000.000-00"
+                    maxLength={14}
+                    onChange={(e) => {
+                      const v = e.target.value.replace(/\D/g, '');
+                      const formatted = v.replace(/(\d{3})(\d{3})(\d{3})(\d{1,2})?/, (_, a, b, c, d) =>
+                        d != null ? `${a}.${b}.${c}-${d}` : v.length > 6 ? `${a}.${b}.${c}-${v.slice(6)}` : v.length > 3 ? `${a}.${b}.${v.slice(3)}` : v.length > 0 ? `${a}.${v.slice(1)}` : ''
+                      );
+                      setValue1('cpf', formatted, { shouldValidate: true });
+                    }}
+                  />
+                  {err1.cpf && <p className="mt-1 text-sm text-red-600">{err1.cpf.message}</p>}
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Telefone</label>
+                  <input
+                    {...reg1('phone')}
+                    value={watch1('phone') ?? ''}
+                    className="input mt-1"
+                    placeholder="(00) 00000-0000"
+                    maxLength={15}
+                    onChange={(e) => {
+                      const v = e.target.value.replace(/\D/g, '');
+                      const formatted = v.length <= 2
+                        ? v ? `(${v}` : ''
+                        : v.length <= 7
+                          ? `(${v.slice(0, 2)}) ${v.slice(2)}`
+                          : `(${v.slice(0, 2)}) ${v.slice(2, 7)}-${v.slice(7, 11)}`;
+                      setValue1('phone', formatted, { shouldValidate: true });
+                    }}
+                  />
+                  {err1.phone && <p className="mt-1 text-sm text-red-600">{err1.phone.message}</p>}
                 </div>
               </div>
               {shippingOptions.length > 0 && (

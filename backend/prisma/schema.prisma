@@ -179,6 +179,8 @@ model Order {
   shippingCity    String     @map("shipping_city")
   shippingState   String     @map("shipping_state")
   shippingZip     String     @map("shipping_zip")
+  shippingCpf     String?    @map("shipping_cpf")
+  shippingPhone   String?    @map("shipping_phone")
   trackingCode    String?    @map("tracking_code")
   createdAt       DateTime   @default(now()) @map("created_at")
   updatedAt       DateTime   @updatedAt @map("updated_at")

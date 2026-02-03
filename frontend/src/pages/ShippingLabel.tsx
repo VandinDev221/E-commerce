@@ -11,6 +11,8 @@ type OrderForLabel = {
   shippingCity: string;
   shippingState: string;
   shippingZip: string;
+  shippingCpf?: string | null;
+  shippingPhone?: string | null;
   createdAt: string;
   user?: { name: string | null; email: string } | null;
   items?: { name: string; quantity: number }[];
@@ -56,8 +58,21 @@ export default function ShippingLabel() {
   }
 
   const NOME_CLIENTE = order.user?.name || order.user?.email || 'Cliente';
-  const CPF_CLIENTE = '-';
-  const TELEFONE_CLIENTE = '-';
+  const formatCpf = (v: string | null | undefined) => {
+    if (!v) return '-';
+    const d = v.replace(/\D/g, '');
+    if (d.length !== 11) return v;
+    return d.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
+  };
+  const formatPhone = (v: string | null | undefined) => {
+    if (!v) return '-';
+    const d = v.replace(/\D/g, '');
+    if (d.length === 11) return d.replace(/(\d{2})(\d{5})(\d{4})/, '($1) $2-$3');
+    if (d.length === 10) return d.replace(/(\d{2})(\d{4})(\d{4})/, '($1) $2-$3');
+    return v;
+  };
+  const CPF_CLIENTE = formatCpf(order.shippingCpf);
+  const TELEFONE_CLIENTE = formatPhone(order.shippingPhone);
   const RUA = order.shippingStreet;
   const NUMERO = '-';
   const COMPLEMENTO = '-';
