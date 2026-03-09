@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import bcrypt from 'bcryptjs';
 import multer from 'multer';
+import fs from 'node:fs';
 import { prisma } from '../lib/prisma.js';
 import { authMiddleware, requireAdmin, AuthRequest } from '../middleware/auth.js';
 import { AppError } from '../middleware/errorHandler.js';
@@ -31,6 +32,17 @@ const productSchema = z.object({
   published: z.boolean().optional(),
   images: z.array(z.string().min(1)).optional(),
 });
+
+const shopeeImportProductSchema = z.object({
+  name: z.string().min(1),
+  description: z.string().optional(),
+  price: z.number().positive(),
+  image: z.string().url().optional(),
+  images: z.array(z.string().url()).optional(),
+  sourceUrl: z.string().url().optional(),
+});
+
+type ShopeeImportInputProduct = z.infer<typeof shopeeImportProductSchema>;
 
 function slugify(s: string) {
   return s
@@ -107,6 +119,19 @@ function inferShopeeSection(name: string, description?: string | null) {
   const text = `${name} ${description ?? ''}`.toLowerCase();
   const found = shopeeSectionRules.find((rule) => rule.keywords.some((k) => text.includes(k)));
   return found ?? { slug: 'geral', name: 'Geral', keywords: [] };
+}
+
+function loadShopeeFallbackProducts(limit: number): ShopeeImportInputProduct[] {
+  try {
+    const fileUrl = new URL('../../tmp/produtos.json', import.meta.url);
+    if (!fs.existsSync(fileUrl)) return [];
+    const raw = JSON.parse(fs.readFileSync(fileUrl, 'utf8'));
+    const parsed = z.array(shopeeImportProductSchema).safeParse(raw);
+    if (!parsed.success) return [];
+    return parsed.data.slice(0, limit);
+  } catch {
+    return [];
+  }
 }
 
 router.get('/products', async (_req, res, next) => {
@@ -344,14 +369,7 @@ router.post('/products/import-shopee-home', async (req, res, next) => {
       url: z.string().url().optional(),
       sectionUrls: z.array(z.string().url()).optional(),
       productUrls: z.array(z.string().url()).optional(),
-      products: z.array(z.object({
-        name: z.string().min(1),
-        description: z.string().optional(),
-        price: z.number().positive(),
-        image: z.string().url().optional(),
-        images: z.array(z.string().url()).optional(),
-        sourceUrl: z.string().url().optional(),
-      })).optional(),
+      products: z.array(shopeeImportProductSchema).optional(),
       limit: z.number().int().min(1).max(80).optional(),
       featuredCount: z.number().int().min(0).max(20).optional(),
     }).parse(req.body);
@@ -382,8 +400,7 @@ router.post('/products/import-shopee-home', async (req, res, next) => {
     }> = [];
     let candidateUrls: string[] = [];
 
-    if (body.products && body.products.length > 0) {
-      const manualProducts = body.products.slice(0, limit);
+    const addManualProducts = (manualProducts: ShopeeImportInputProduct[]) => {
       for (let idx = 0; idx < manualProducts.length; idx += 1) {
         const p = manualProducts[idx];
         const fallbackSource = `https://shopee.com.br/import/${slugify(p.name) || `item-${idx + 1}`}-${idx + 1}`;
@@ -405,6 +422,10 @@ router.post('/products/import-shopee-home', async (req, res, next) => {
           sectionName: section.name,
         });
       }
+    };
+
+    if (body.products && body.products.length > 0) {
+      addManualProducts(body.products.slice(0, limit));
     } else {
       const allProductUrls = new Set<string>();
       const sources = sectionUrls.length > 0 ? sectionUrls : [sourceUrl];
@@ -425,10 +446,15 @@ router.post('/products/import-shopee-home', async (req, res, next) => {
 
       candidateUrls = Array.from(allProductUrls).slice(0, limit);
       if (candidateUrls.length === 0) {
-        throw new AppError(
-          'Não foi possível extrair links da Shopee. Informe links em "productUrls" ou dados em "products".',
-          400
-        );
+        const fallbackProducts = loadShopeeFallbackProducts(limit);
+        if (fallbackProducts.length > 0) {
+          addManualProducts(fallbackProducts);
+        } else {
+          throw new AppError(
+            'Não foi possível extrair links da Shopee. Informe links em "productUrls" ou dados em "products".',
+            400
+          );
+        }
       }
 
       for (const productUrl of candidateUrls) {
