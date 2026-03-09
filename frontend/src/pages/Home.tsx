@@ -5,17 +5,43 @@ import { FiCheckCircle, FiCreditCard, FiHeadphones, FiTruck } from 'react-icons/
 import { api } from '../api/client';
 import ProductCard from '../components/ProductCard';
 import type { ProductCardData } from '../components/ProductCard';
+import { getCachedValue, setCachedValue } from '../lib/queryCache';
+
+const FEATURED_CACHE_KEY = 'home:featured-products';
 
 export default function Home() {
-  const [featured, setFeatured] = useState<ProductCardData[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [featured, setFeatured] = useState<ProductCardData[]>(
+    () => getCachedValue<ProductCardData[]>(FEATURED_CACHE_KEY) ?? []
+  );
+  const [loading, setLoading] = useState(
+    () => getCachedValue<ProductCardData[]>(FEATURED_CACHE_KEY) == null
+  );
 
   useEffect(() => {
+    let active = true;
+    const cached = getCachedValue<ProductCardData[]>(FEATURED_CACHE_KEY);
+    if (cached) {
+      setFeatured(cached);
+      setLoading(false);
+    }
     api
       .get<ProductCardData[]>('/products/featured')
-      .then((res) => setFeatured(res.data))
-      .catch(() => setFeatured([]))
-      .finally(() => setLoading(false));
+      .then((res) => {
+        if (!active) return;
+        setFeatured(res.data);
+        setCachedValue(FEATURED_CACHE_KEY, res.data, 60_000);
+      })
+      .catch(() => {
+        if (!active) return;
+        if (!cached) setFeatured([]);
+      })
+      .finally(() => {
+        if (!active) return;
+        setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
   }, []);
 
   return (

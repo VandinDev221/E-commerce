@@ -4,6 +4,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { fetchMe } from './store/authSlice';
 import { setCartSession } from './api/client';
 import type { RootState } from './store';
+import { warmCommonApiData, warmCommonRouteChunks } from './lib/prefetch';
 
 import Layout from './components/Layout';
 
@@ -56,6 +57,20 @@ export default function App() {
     setCartSession(cartSession);
     dispatch(fetchMe());
   }, [dispatch]);
+
+  useEffect(() => {
+    const runPrefetch = () => {
+      warmCommonRouteChunks();
+      warmCommonApiData();
+    };
+    if (typeof window === 'undefined') return;
+    if ('requestIdleCallback' in window) {
+      const id = window.requestIdleCallback(runPrefetch, { timeout: 1200 });
+      return () => window.cancelIdleCallback(id);
+    }
+    const timer = window.setTimeout(runPrefetch, 500);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   return (
     <Suspense fallback={<PageLoader />}>

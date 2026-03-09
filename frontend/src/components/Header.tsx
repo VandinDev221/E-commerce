@@ -5,6 +5,7 @@ import { FiShoppingCart, FiUser, FiMenu, FiX, FiSearch, FiHeart } from 'react-ic
 import { useSelector, useDispatch } from 'react-redux';
 import type { RootState } from '../store';
 import { logout } from '../store/authSlice';
+import { preloadBlogPage, preloadProductsPage, warmProductsData } from '../lib/prefetch';
 
 export default function Header() {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -25,10 +26,26 @@ export default function Header() {
         </Link>
 
         <nav className="hidden items-center gap-6 text-sm md:flex">
-          <Link to="/products" className="font-medium text-gray-600 hover:text-primary-600">
+          <Link
+            to="/products"
+            className="font-medium text-gray-600 hover:text-primary-600"
+            onMouseEnter={() => {
+              preloadProductsPage();
+              warmProductsData();
+            }}
+            onFocus={() => {
+              preloadProductsPage();
+              warmProductsData();
+            }}
+          >
             Produtos
           </Link>
-          <Link to="/blog" className="font-medium text-gray-600 hover:text-primary-600">
+          <Link
+            to="/blog"
+            className="font-medium text-gray-600 hover:text-primary-600"
+            onMouseEnter={preloadBlogPage}
+            onFocus={preloadBlogPage}
+          >
             Blog
           </Link>
         </nav>
@@ -157,10 +174,21 @@ export default function Header() {
             className="border-t border-gray-200 bg-white md:hidden"
           >
             <nav className="flex flex-col gap-1 px-4 py-3">
-              <Link to="/products" className="rounded-lg px-3 py-2 text-gray-700 hover:bg-gray-50">
+              <Link
+                to="/products"
+                className="rounded-lg px-3 py-2 text-gray-700 hover:bg-gray-50"
+                onClick={() => {
+                  preloadProductsPage();
+                  warmProductsData();
+                }}
+              >
                 Produtos
               </Link>
-              <Link to="/blog" className="rounded-lg px-3 py-2 text-gray-700 hover:bg-gray-50">
+              <Link
+                to="/blog"
+                className="rounded-lg px-3 py-2 text-gray-700 hover:bg-gray-50"
+                onClick={() => preloadBlogPage()}
+              >
                 Blog
               </Link>
               {user ? (

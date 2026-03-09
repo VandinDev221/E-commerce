@@ -19,8 +19,27 @@ const querySchema = z.object({
   featured: z.enum(['true', 'false']).optional(),
 });
 
+type ReviewStats = { avgRating: number | null; reviewCount: number };
+
+async function getReviewStatsByProductIds(productIds: string[]) {
+  if (productIds.length === 0) return new Map<string, ReviewStats>();
+  const grouped = await prisma.review.groupBy({
+    by: ['productId'],
+    where: { productId: { in: productIds } },
+    _avg: { rating: true },
+    _count: { rating: true },
+  });
+  return new Map<string, ReviewStats>(
+    grouped.map((g) => [
+      g.productId,
+      { avgRating: g._avg.rating != null ? Number(g._avg.rating) : null, reviewCount: g._count.rating },
+    ])
+  );
+}
+
 router.get('/', async (req, res, next) => {
   try {
+    res.set('Cache-Control', 'public, max-age=30, s-maxage=120, stale-while-revalidate=300');
     const q = querySchema.parse(req.query);
     const cacheKey = `products:${JSON.stringify(q)}`;
     const cached = await cacheGet<unknown>(cacheKey);
@@ -63,24 +82,27 @@ router.get('/', async (req, res, next) => {
         skip,
         take: q.limit,
         orderBy,
-        include: {
-          category: { select: { id: true, name: true, slug: true } },
-          reviews: { select: { rating: true } },
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+          price: true,
+          compareAtPrice: true,
+          images: true,
+          createdAt: true,
         },
       }),
       prisma.product.count({ where }),
     ]);
+    const reviewStats = await getReviewStatsByProductIds(products.map((p) => p.id));
 
     const items = products.map((p) => ({
       ...p,
       images: normalizeProductImages(p.images, p.name),
       price: Number(p.price),
       compareAtPrice: p.compareAtPrice ? Number(p.compareAtPrice) : null,
-      avgRating:
-        p.reviews.length > 0
-          ? p.reviews.reduce((a, r) => a + r.rating, 0) / p.reviews.length
-          : null,
-      reviewCount: p.reviews.length,
+      avgRating: reviewStats.get(p.id)?.avgRating ?? null,
+      reviewCount: reviewStats.get(p.id)?.reviewCount ?? 0,
     }));
 
     const response = {
@@ -99,24 +121,30 @@ router.get('/', async (req, res, next) => {
 
 router.get('/featured', async (_req, res, next) => {
   try {
+    res.set('Cache-Control', 'public, max-age=60, s-maxage=300, stale-while-revalidate=600');
     const cached = await cacheGet<unknown>('products:featured');
     if (cached) return res.json(cached);
     const products = await prisma.product.findMany({
       where: { featured: true, published: true },
       take: 8,
-      include: {
-        reviews: { select: { rating: true } },
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        price: true,
+        compareAtPrice: true,
+        images: true,
+        createdAt: true,
       },
     });
+    const reviewStats = await getReviewStatsByProductIds(products.map((p) => p.id));
     const items = products.map((p) => ({
       ...p,
       images: normalizeProductImages(p.images, p.name),
       price: Number(p.price),
       compareAtPrice: p.compareAtPrice ? Number(p.compareAtPrice) : null,
-      avgRating:
-        p.reviews.length > 0
-          ? p.reviews.reduce((a, r) => a + r.rating, 0) / p.reviews.length
-          : null,
+      avgRating: reviewStats.get(p.id)?.avgRating ?? null,
+      reviewCount: reviewStats.get(p.id)?.reviewCount ?? 0,
     }));
     await cacheSet('products:featured', items, 600);
     res.json(items);
@@ -156,6 +184,7 @@ router.get('/search/suggestions', async (req, res, next) => {
 
 router.get('/:slug', async (req, res, next) => {
   try {
+    res.set('Cache-Control', 'public, max-age=30, s-maxage=120, stale-while-revalidate=300');
     const slug = req.params.slug;
     const cacheKey = `product:${slug}`;
     const cached = await cacheGet<unknown>(cacheKey);
@@ -181,8 +210,15 @@ router.get('/:slug', async (req, res, next) => {
         id: { not: product.id },
       },
       take: 4,
-      include: { reviews: { select: { rating: true } } },
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        price: true,
+        images: true,
+      },
     });
+    const relatedStats = await getReviewStatsByProductIds(related.map((p) => p.id));
 
     const result = {
       ...product,
@@ -198,10 +234,8 @@ router.get('/:slug', async (req, res, next) => {
         ...p,
         images: normalizeProductImages(p.images, p.name),
         price: Number(p.price),
-        avgRating:
-          p.reviews.length > 0
-            ? p.reviews.reduce((a, r) => a + r.rating, 0) / p.reviews.length
-            : null,
+        avgRating: relatedStats.get(p.id)?.avgRating ?? null,
+        reviewCount: relatedStats.get(p.id)?.reviewCount ?? 0,
       })),
     };
     await cacheSet(cacheKey, result, 300);

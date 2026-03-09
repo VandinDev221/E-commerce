@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { api } from '../api/client';
 import ProductCard from '../components/ProductCard';
 import type { ProductCardData } from '../components/ProductCard';
+import { getCachedValue, setCachedValue } from '../lib/queryCache';
 
 interface PaginatedProducts {
   items: ProductCardData[];
@@ -15,15 +16,27 @@ interface PaginatedProducts {
 export default function Products() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const [data, setData] = useState<PaginatedProducts | null>(null);
-  const [loading, setLoading] = useState(true);
-
   const page = Number(searchParams.get('page')) || 1;
   const search = searchParams.get('search') || '';
   const category = searchParams.get('category') || '';
   const sort = searchParams.get('sort') || '';
+  const cacheKey = `products:list:${page}:${search}:${category}:${sort}`;
+
+  const [data, setData] = useState<PaginatedProducts | null>(
+    () => getCachedValue<PaginatedProducts>(cacheKey) ?? null
+  );
+  const [loading, setLoading] = useState(
+    () => getCachedValue<PaginatedProducts>(cacheKey) == null
+  );
 
   useEffect(() => {
+    const cached = getCachedValue<PaginatedProducts>(cacheKey);
+    if (cached) {
+      setData(cached);
+      setLoading(false);
+      return;
+    }
+    let active = true;
     setLoading(true);
     const params = new URLSearchParams();
     if (page > 1) params.set('page', String(page));
@@ -32,10 +45,23 @@ export default function Products() {
     if (sort) params.set('sort', sort);
     api
       .get<PaginatedProducts>(`/products?${params}`)
-      .then((res) => setData(res.data))
-      .catch(() => setData({ items: [], total: 0, page: 1, limit: 12, totalPages: 0 }))
-      .finally(() => setLoading(false));
-  }, [page, search, category, sort]);
+      .then((res) => {
+        if (!active) return;
+        setData(res.data);
+        setCachedValue(cacheKey, res.data, 45_000);
+      })
+      .catch(() => {
+        if (!active) return;
+        setData({ items: [], total: 0, page: 1, limit: 12, totalPages: 0 });
+      })
+      .finally(() => {
+        if (!active) return;
+        setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [page, search, category, sort, cacheKey]);
 
   const setParam = (key: string, value: string) => {
     const next = new URLSearchParams(searchParams);
