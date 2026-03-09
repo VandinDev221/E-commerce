@@ -16,7 +16,7 @@ const Login = lazy(() => import('./pages/Login'));
 const Register = lazy(() => import('./pages/Register'));
 const Profile = lazy(() => import('./pages/Profile'));
 const Orders = lazy(() => import('./pages/Orders'));
-const Admin = lazy(() => import('./pages/Admin').then((m) => ({ default: m.Admin })));
+const Admin = lazy(() => import('./pages/Admin'));
 const AdminDashboard = lazy(() => import('./pages/Admin').then((m) => ({ default: m.AdminDashboard })));
 const AdminProducts = lazy(() => import('./pages/Admin').then((m) => ({ default: m.AdminProducts })));
 const AdminProductForm = lazy(() => import('./pages/Admin').then((m) => ({ default: m.AdminProductForm })));

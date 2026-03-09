@@ -1,0 +1,1 @@
+const a="https://placehold.co/600x600?text=Produto";function e(o){return o!=null&&o.trim()?`https://placehold.co/600x600?text=${encodeURIComponent(o.trim()).replace(/%20/g,"+")}`:a}const t={NOME_LOJA:"Minha Loja",CNPJ_LOJA:"00.000.000/0000-00",ENDERECO_LOJA:"Rua Exemplo, 123 - Cidade, Estado - 00000-000"};export{t as L,e as g};

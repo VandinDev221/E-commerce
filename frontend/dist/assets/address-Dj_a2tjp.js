@@ -1,0 +1,1 @@
+function l(n,r,m,o){const p=(o||"").replace(/\D/g,"");return[n==null?void 0:n.trim(),r!=null&&r.trim()&&(m!=null&&m.trim())?`${r.trim()} - ${m.trim()}`:(r==null?void 0:r.trim())||(m==null?void 0:m.trim()),p].filter(Boolean).join(", ")||""}export{l as f};
