@@ -93,6 +93,88 @@ function normalizeShopeeProductUrl(rawUrl: string) {
   }
 }
 
+function normalizeShopeeImageUrl(raw?: string | null) {
+  if (!raw) return null;
+  const clean = raw
+    .replace(/\\u002F/g, '/')
+    .replace(/\\\//g, '/')
+    .trim();
+  if (!clean) return null;
+
+  if (/^[a-f0-9]{20,}$/i.test(clean)) {
+    return `https://down-br.img.susercontent.com/file/${clean}`;
+  }
+
+  let candidate = clean;
+  if (candidate.startsWith('//')) candidate = `https:${candidate}`;
+  if (candidate.startsWith('/file/')) candidate = `https://down-br.img.susercontent.com${candidate}`;
+  if (candidate.startsWith('file/')) candidate = `https://down-br.img.susercontent.com/${candidate}`;
+
+  if (!/^https?:\/\//i.test(candidate)) return null;
+
+  try {
+    const parsed = new URL(candidate);
+    parsed.hash = '';
+    const host = parsed.hostname.toLowerCase();
+    if (host.includes('img.susercontent.com')) {
+      if (!/\/file\/[A-Za-z0-9_-]{20,}/.test(parsed.pathname)) return null;
+      return parsed.toString();
+    }
+    if (host.includes('shopee') || host.includes('shopeemobile')) return null;
+    if (!/\.(jpg|jpeg|png|webp)$/i.test(parsed.pathname)) return null;
+    return parsed.toString();
+  } catch {
+    return null;
+  }
+}
+
+function extractValidShopeeImages(images: Array<string | null | undefined> | null | undefined) {
+  return Array.from(
+    new Set(
+      (images ?? [])
+        .map((img) => normalizeShopeeImageUrl(img ?? undefined))
+        .filter((img): img is string => Boolean(img))
+    )
+  ).slice(0, 8);
+}
+
+function normalizeShopeeImages(images: Array<string | null | undefined> | null | undefined, productName: string) {
+  const normalized = extractValidShopeeImages(images);
+  if (normalized.length > 0) return Array.from(new Set(normalized)).slice(0, 8);
+  return [getDefaultImageUrl(productName)];
+}
+
+function decodeShopeeText(raw: string | null | undefined) {
+  if (!raw) return null;
+  const withUnicode = raw.replace(/\\u([0-9a-fA-F]{4})/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)));
+  return withUnicode
+    .replace(/&amp;/g, '&')
+    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)))
+    .replace(/\\"/g, '"')
+    .replace(/\\n/g, '\n')
+    .replace(/\\t/g, '\t');
+}
+
+function isLikelyShopeeProductContent(name?: string | null, description?: string | null) {
+  const n = (name ?? '').toLowerCase();
+  const d = (description ?? '').toLowerCase();
+  if (!n || n.length < 4) return false;
+  const blockedMarkers = [
+    'shopee brasil',
+    'faça login',
+    'faca login',
+    'página indisponível',
+    'pagina indisponivel',
+    'precisa de ajuda',
+    'shopee__domain',
+  ];
+  return !blockedMarkers.some((m) => n.includes(m) || d.includes(m));
+}
+
+function isPlaceholderImage(url: string) {
+  return url.includes('placehold.co');
+}
+
 function extractShopeeProductUrls(html: string) {
   const urls = new Set<string>();
   const absoluteSlug = html.match(/https?:\/\/[^"'\s>]*shopee[^"'\s>]*-i\.\d+\.\d+/gi) ?? [];
@@ -279,17 +361,19 @@ router.put('/products/:id', upload.array('images', 10), async (req: AuthRequest,
 });
 
 function parseShopeePage(html: string, url: string) {
-  const decode = (s: string) => s.replace(/&amp;/g, '&').replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)));
-
   const name =
-    html.match(/<meta[^>]*property="og:title"[^>]*content="([^"]+)"/i)?.[1]?.replace(/&amp;/g, '&') ??
-    html.match(/<meta[^>]*content="([^"]+)"[^>]*property="og:title"/i)?.[1]?.replace(/&amp;/g, '&') ??
+    html.match(/<meta[^>]*property="og:title"[^>]*content="([^"]+)"/i)?.[1] ??
+    html.match(/<meta[^>]*content="([^"]+)"[^>]*property="og:title"/i)?.[1] ??
     html.match(/"name":\s*"([^"]+)"/)?.[1] ??
     null;
+  const descriptionJson =
+    html.match(/"description":\s*"((?:\\.|[^"\\])+)"/i)?.[1] ??
+    null;
   const description =
-    html.match(/<meta[^>]*property="og:description"[^>]*content="([^"]+)"/i)?.[1]?.replace(/&amp;/g, '&') ??
-    html.match(/<meta[^>]*content="([^"]+)"[^>]*property="og:description"/i)?.[1]?.replace(/&amp;/g, '&') ??
-    html.match(/<meta[^>]*name="description"[^>]*content="([^"]+)"/i)?.[1]?.replace(/&amp;/g, '&') ??
+    html.match(/<meta[^>]*property="og:description"[^>]*content="([^"]+)"/i)?.[1] ??
+    html.match(/<meta[^>]*content="([^"]+)"[^>]*property="og:description"/i)?.[1] ??
+    html.match(/<meta[^>]*name="description"[^>]*content="([^"]+)"/i)?.[1] ??
+    descriptionJson ??
     null;
 
   const images: string[] = [];
@@ -332,8 +416,8 @@ function parseShopeePage(html: string, url: string) {
   if (stockM) stock = parseInt(stockM[1], 10);
 
   return {
-    name: name ? decode(name) : null,
-    description: description ? decode(description) : null,
+    name: decodeShopeeText(name),
+    description: decodeShopeeText(description),
     price,
     images: images.length > 0 ? images.slice(0, 8) : null,
     stock,
@@ -400,24 +484,49 @@ router.post('/products/import-shopee-home', async (req, res, next) => {
     }> = [];
     let candidateUrls: string[] = [];
 
-    const addManualProducts = (manualProducts: ShopeeImportInputProduct[]) => {
+    const addManualProducts = async (manualProducts: ShopeeImportInputProduct[]) => {
       for (let idx = 0; idx < manualProducts.length; idx += 1) {
         const p = manualProducts[idx];
         const fallbackSource = `https://shopee.com.br/import/${slugify(p.name) || `item-${idx + 1}`}-${idx + 1}`;
         const source = p.sourceUrl ? normalizeShopeeProductUrl(p.sourceUrl) : fallbackSource;
         if (p.sourceUrl && !source) continue;
-        const section = inferShopeeSection(p.name, p.description);
+        let parsedName = p.name.trim();
+        let parsedDescription = p.description?.trim() || null;
+        let parsedImages = normalizeShopeeImages([...(p.images ?? []), p.image], parsedName);
+        let parsedStock = 100;
+
+        if (source && (source.includes('/product/') || source.includes('-i.'))) {
+          try {
+            const response = await fetch(source, { headers, redirect: 'follow' });
+            const html = await response.text();
+            const enriched = parseShopeePage(html, source);
+            const enrichedImages = extractValidShopeeImages(enriched.images);
+            const canUseText = isLikelyShopeeProductContent(enriched.name, enriched.description);
+            if (canUseText && enriched.name) parsedName = enriched.name;
+            if (canUseText && (!parsedDescription || parsedDescription.length < 50) && enriched.description) {
+              parsedDescription = enriched.description;
+            }
+            if (enrichedImages.length > 0) {
+              parsedImages = enrichedImages;
+            }
+            parsedStock = Math.max(100, enriched.stock ?? 0);
+          } catch {
+            // se falhar enriquecimento, mantém dados enviados
+          }
+        }
+
+        const section = inferShopeeSection(parsedName, parsedDescription);
         const costPrice = Math.round(p.price * 100) / 100;
         const price = Math.round(costPrice * 1.15 * 100) / 100;
         sectionsNeeded.add(section.slug);
         importedRaw.push({
           url: source ?? fallbackSource,
-          name: p.name,
-          description: p.description ?? null,
+          name: parsedName,
+          description: parsedDescription,
           costPrice,
           price,
-          images: p.images?.length ? p.images : (p.image ? [p.image] : [getDefaultImageUrl(p.name)]),
-          stock: 0,
+          images: parsedImages,
+          stock: parsedStock,
           sectionSlug: section.slug,
           sectionName: section.name,
         });
@@ -425,7 +534,7 @@ router.post('/products/import-shopee-home', async (req, res, next) => {
     };
 
     if (body.products && body.products.length > 0) {
-      addManualProducts(body.products.slice(0, limit));
+      await addManualProducts(body.products.slice(0, limit));
     } else {
       const allProductUrls = new Set<string>();
       const sources = sectionUrls.length > 0 ? sectionUrls : [sourceUrl];
@@ -448,7 +557,7 @@ router.post('/products/import-shopee-home', async (req, res, next) => {
       if (candidateUrls.length === 0) {
         const fallbackProducts = loadShopeeFallbackProducts(limit);
         if (fallbackProducts.length > 0) {
-          addManualProducts(fallbackProducts);
+          await addManualProducts(fallbackProducts);
         } else {
           throw new AppError(
             'Não foi possível extrair links da Shopee. Informe links em "productUrls" ou dados em "products".',
@@ -473,8 +582,8 @@ router.post('/products/import-shopee-home', async (req, res, next) => {
             description: parsed.description,
             costPrice,
             price,
-            images: parsed.images ?? [getDefaultImageUrl(parsed.name)],
-            stock: parsed.stock != null && parsed.stock >= 0 ? parsed.stock : 0,
+            images: normalizeShopeeImages(parsed.images, parsed.name),
+            stock: Math.max(100, parsed.stock ?? 0),
             sectionSlug: section.slug,
             sectionName: section.name,
           });
@@ -522,19 +631,25 @@ router.post('/products/import-shopee-home', async (req, res, next) => {
 
       const existingBySource = await prisma.product.findFirst({
         where: { sourceUrl: item.url },
-        select: { id: true, slug: true },
+        select: { id: true, slug: true, description: true, images: true, stock: true },
       });
 
       if (existingBySource) {
+        const importedHasRealImage = item.images.some((img) => !isPlaceholderImage(img));
+        const existingHasRealImage = (existingBySource.images ?? []).some((img) => !isPlaceholderImage(img));
+        const descriptionToSave =
+          item.description && item.description.length >= (existingBySource.description?.length ?? 0)
+            ? item.description
+            : existingBySource.description;
         const updated = await prisma.product.update({
           where: { id: existingBySource.id },
           data: {
             name: item.name,
-            description: item.description ?? undefined,
+            description: descriptionToSave ?? undefined,
             costPrice: item.costPrice,
             price: item.price,
-            images: item.images,
-            stock: item.stock,
+            images: importedHasRealImage || !existingHasRealImage ? item.images : existingBySource.images,
+            stock: Math.max(100, item.stock, existingBySource.stock),
             categoryId,
             sourceUrl: item.url,
             featured,
