@@ -7,27 +7,30 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 
 function getPath(req: VercelRequest): string {
   const r = req as any;
+  const slug = r.query?.slug;
+  const pathFromSlug =
+    Array.isArray(slug) && slug.length > 0
+      ? `/api/${slug.join('/')}`
+      : typeof slug === 'string' && slug
+        ? `/api/${slug}`
+        : '';
+
   // URL completa (PATCH etc.) -> extrair pathname
   if (r.url && typeof r.url === 'string') {
-    if (r.url.startsWith('http')) {
-      try {
-        return new URL(r.url).pathname;
-      } catch {
-        return r.url.split('?')[0] || '/api';
-      }
-    }
-    return r.url.split('?')[0] || '/api';
+    const pathOnly = r.url.startsWith('http')
+      ? (() => {
+          try {
+            return new URL(r.url).pathname;
+          } catch {
+            return r.url.split('?')[0] || '';
+          }
+        })()
+      : r.url.split('?')[0] || '';
+    if (pathOnly && pathOnly.startsWith('/api')) return pathOnly;
   }
-  if (r.path) return r.path;
-  if (r.pathname) return r.pathname;
-  // Fallback: montar a partir de query.slug (ex: slug = ['admin', 'orders', 'id', 'status'])
-  const slug = r.query?.slug;
-  const pathFromSlug = Array.isArray(slug)
-    ? `/${slug.join('/')}`
-    : typeof slug === 'string'
-      ? `/${slug}`
-      : '';
-  return pathFromSlug ? `/api/${pathFromSlug.replace(/^\/+/, '')}` : '/api';
+  if (r.path && r.path.startsWith('/api')) return r.path;
+  if (r.pathname && r.pathname.startsWith('/api')) return r.pathname;
+  return pathFromSlug || '/api';
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {

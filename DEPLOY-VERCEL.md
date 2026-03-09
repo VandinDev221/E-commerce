@@ -99,6 +99,11 @@ No PowerShell: `$env:DATABASE_URL="postgresql://..."; npx prisma migrate deploy;
 - Frontend: `https://seu-projeto.vercel.app`
 - Health da API: `https://seu-projeto.vercel.app/api/health` (deve retornar `database: "ok"` se o banco estiver acessível).
 
+### 7. Erro 500 em /api/orders ou 404 em /api/coupons, /api/shipping/cep
+
+- **500 em /api/orders:** o banco de produção (Neon) pode estar sem as migrações novas. Rode de novo com a `DATABASE_URL` do Neon: `npx prisma migrate deploy` (na pasta `backend`). Ou execute o script: `node scripts/run-add-shipping-fields.js` (com `DATABASE_URL` do Neon no `.env`).
+- **404 em /api/coupons/validate ou /api/shipping/cep/xxx:** após o deploy, as rotas são atendidas por handlers específicos; se ainda falhar, confira as variáveis de ambiente na Vercel e faça um novo deploy.
+
 ## Limites e dicas
 
 - **Timeout:** funções serverless na Vercel têm limite de tempo (ex.: 30 s no plano Hobby). Requisições pesadas ou lentas podem falhar.

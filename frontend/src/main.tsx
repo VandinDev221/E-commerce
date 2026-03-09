@@ -6,14 +6,9 @@ import { Toaster } from 'react-hot-toast';
 import { store } from './store';
 import App from './App';
 import './index.css';
-import { applyTheme, getInitialTheme } from './lib/theme';
+import { applyTheme } from './lib/theme';
 
-// Aplica tema antes do render (evita "flash" de tema)
-try {
-  applyTheme(getInitialTheme());
-} catch {
-  // ignore
-}
+applyTheme();
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

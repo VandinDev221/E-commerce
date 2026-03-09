@@ -29,6 +29,10 @@
     "api/shipping/[...slug].ts": {
       "memory": 2048,
       "maxDuration": 10
+    },
+    "api/coupons/[...slug].ts": {
+      "memory": 2048,
+      "maxDuration": 10
     }
   }
 }
