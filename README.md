@@ -112,6 +112,24 @@ Para publicar com **Neon** como PostgreSQL em produção:
 
 ---
 
+## Go-live (pronto para vender)
+
+Checklist mínimo para produção:
+
+1. Definir variáveis de produção na Vercel/host:
+   - `DATABASE_URL` (Neon com `sslmode=require`)
+   - `JWT_SECRET` e `JWT_REFRESH_SECRET` fortes
+   - `FRONTEND_URL` com o domínio final
+   - `STRIPE_SECRET_KEY` e `STRIPE_WEBHOOK_SECRET`
+2. Configurar webhook Stripe para:
+   - URL: `https://SEU_DOMINIO/api/stripe/webhook`
+   - Eventos: `payment_intent.succeeded`, `payment_intent.payment_failed`, `payment_intent.canceled`
+3. Rodar migrações no banco de produção: `cd backend && npx prisma migrate deploy`
+4. Executar smoke test pós-deploy:
+   - `cd backend && API_URL=https://SEU_DOMINIO/api SMOKE_EMAIL=... SMOKE_PASSWORD=... npm run smoke:prod`
+
+---
+
 ## Solução de problemas
 
 | Problema | Causa provável | Solução |

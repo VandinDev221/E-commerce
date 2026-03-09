@@ -19,6 +19,7 @@ import { adminRoutes } from './routes/admin.js';
 import { blogRoutes } from './routes/blog.js';
 import { shippingRoutes } from './routes/shipping.js';
 import { couponRoutes } from './routes/coupons.js';
+import { stripeRoutes } from './routes/stripe.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -37,6 +38,7 @@ app.use(cors({
   origin: process.env.FRONTEND_URL || 'http://localhost:5173',
   credentials: true,
 }));
+app.use('/api/stripe', express.raw({ type: 'application/json' }));
 app.use(express.json({ limit: '10mb' }));
 app.use(cookieParser());
 app.use(limiter);
@@ -67,6 +69,7 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/blog', blogRoutes);
 app.use('/api/shipping', shippingRoutes);
 app.use('/api/coupons', couponRoutes);
+app.use('/api/stripe', stripeRoutes);
 
 app.use(errorHandler);
 

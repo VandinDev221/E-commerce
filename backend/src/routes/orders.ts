@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { prisma } from '../lib/prisma.js';
 import { authMiddleware, AuthRequest } from '../middleware/auth.js';
 import { AppError } from '../middleware/errorHandler.js';
-import { createPaymentIntent } from '../services/stripe.js';
+import { createPaymentIntent, stripe } from '../services/stripe.js';
 import { sendOrderConfirmation } from '../services/email.js';
 
 const router = Router();
@@ -158,6 +158,9 @@ router.get('/:id', async (req: AuthRequest, res, next) => {
 router.post('/create-payment-intent', async (req: AuthRequest, res, next) => {
   try {
     const body = checkoutSchema.parse(req.body);
+    if (!stripe) {
+      throw new AppError('Stripe não configurado no servidor', 503);
+    }
     const pricedItems = await getPricedCheckoutItems(body.items);
     const subtotal = calculateSubtotal(pricedItems);
     const { discount } = await calculateCouponDiscount(body.couponCode, subtotal);
@@ -266,6 +269,27 @@ router.patch('/:id/payment', async (req: AuthRequest, res, next) => {
       where: { id: req.params.id, userId: req.user!.id },
     });
     if (!order) throw new AppError('Pedido não encontrado', 404);
+    if (order.paymentMethod !== 'CARD') {
+      throw new AppError('Confirmação manual só é permitida para pedidos com cartão', 400);
+    }
+    if (!['PENDING', 'PROCESSING'].includes(order.status)) {
+      throw new AppError('Pedido não está aguardando pagamento', 400);
+    }
+    if (!stripe) {
+      throw new AppError('Stripe não configurado no servidor', 503);
+    }
+
+    const paymentIntent = await stripe.paymentIntents.retrieve(paymentId);
+    if (paymentIntent.status !== 'succeeded') {
+      throw new AppError('Pagamento ainda não foi confirmado na Stripe', 400);
+    }
+    if (paymentIntent.currency !== 'brl') {
+      throw new AppError('Moeda inválida para o pedido', 400);
+    }
+    if (paymentIntent.amount_received < Math.round(Number(order.total) * 100)) {
+      throw new AppError('Valor recebido menor que o total do pedido', 400);
+    }
+
     await prisma.order.update({
       where: { id: order.id },
       data: { paymentId, status: 'PAID' },

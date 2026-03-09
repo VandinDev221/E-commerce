@@ -134,6 +134,11 @@ export default function Checkout() {
   const total = subtotal + shippingCost - discount;
 
   const onStep2 = (data: Step2Form) => {
+    const street = watch1('street');
+    const number = watch1('number');
+    const complement = watch1('complement');
+    const neighborhood = watch1('neighborhood');
+    const shippingStreet = [street, number, complement, neighborhood].filter(Boolean).join(', ');
     const payload = {
       items: items.map((i) => ({
         productId: i.productId,
@@ -142,7 +147,7 @@ export default function Checkout() {
         name: i.name,
         image: i.image ?? undefined,
       })),
-      shippingStreet: watch1('street'),
+      shippingStreet,
       shippingCity: watch1('city'),
       shippingState: watch1('state'),
       shippingZip: watch1('zipCode').replace(/\D/g, ''),
