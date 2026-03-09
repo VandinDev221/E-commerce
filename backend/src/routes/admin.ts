@@ -185,34 +185,78 @@ router.put('/products/:id', upload.array('images', 10), async (req: AuthRequest,
   }
 });
 
+function parseShopeePage(html: string, url: string) {
+  const decode = (s: string) => s.replace(/&amp;/g, '&').replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)));
+
+  const name =
+    html.match(/<meta[^>]*property="og:title"[^>]*content="([^"]+)"/i)?.[1]?.replace(/&amp;/g, '&') ??
+    html.match(/<meta[^>]*content="([^"]+)"[^>]*property="og:title"/i)?.[1]?.replace(/&amp;/g, '&') ??
+    html.match(/"name":\s*"([^"]+)"/)?.[1] ??
+    null;
+
+  const images: string[] = [];
+  const ogImage = html.match(/<meta[^>]*property="og:image"[^>]*content="([^"]+)"/i)?.[1] ?? html.match(/<meta[^>]*content="([^"]+)"[^>]*property="og:image"/i)?.[1];
+  if (ogImage) images.push(ogImage);
+  const imageUrls = html.match(/https?:\/\/[^"'\s]*shopee[^"'\s]*\.(?:jpg|jpeg|png|webp)(?:\?[^"'\s]*)?/gi) ?? [];
+  imageUrls.forEach((u) => {
+    const clean = u.replace(/\\u002F/g, '/').replace(/\\\//g, '/');
+    if (!images.includes(clean)) images.push(clean);
+  });
+  const jsonImages = html.match(/"image":\s*"((?:https?:\/\/[^"]+))"/gi) ?? [];
+  jsonImages.forEach((m) => {
+    const u = m.replace(/"image":\s*"/i, '').replace(/"$/, '').replace(/\\u002F/g, '/');
+    if (u && !images.includes(u)) images.push(u);
+  });
+
+  let price: number | null = null;
+  const priceCents = html.match(/"price":\s*(\d{3,})/);
+  const priceMin = html.match(/"price_min":\s*(\d+)/);
+  const priceFormatted = html.match(/"formatted_price":\s*"R\$\s*([\d,.]+)"/);
+  const priceInline = html.match(/R\$\s*([\d,.]+)/);
+  if (priceCents) {
+    const v = parseInt(priceCents[1], 10);
+    price = v >= 1000 ? v / 100 : v;
+  } else if (priceMin) {
+    const v = parseInt(priceMin[1], 10);
+    price = v >= 1000 ? v / 100 : v;
+  } else if (priceFormatted) {
+    const raw = priceFormatted[1].replace(/\./g, '').replace(',', '.');
+    const n = parseFloat(raw);
+    if (!Number.isNaN(n)) price = n;
+  } else if (priceInline) {
+    const raw = priceInline[1].replace(/\./g, '').replace(',', '.');
+    const n = parseFloat(raw);
+    if (!Number.isNaN(n)) price = n <= 100000 ? n : n / 100;
+  }
+
+  let stock: number | null = null;
+  const stockM = html.match(/"stock":\s*(\d+)/) ?? html.match(/"stock_quantity":\s*(\d+)/) ?? html.match(/"quantity":\s*(\d+)/);
+  if (stockM) stock = parseInt(stockM[1], 10);
+
+  return {
+    name: name ? decode(name) : null,
+    price,
+    images: images.length > 0 ? images : null,
+    stock,
+    sourceUrl: url,
+  };
+}
+
 router.post('/products/import-shopee', async (req, res, next) => {
   try {
     const { url } = z.object({ url: z.string().url().refine((u) => u.includes('shopee'), 'URL deve ser da Shopee') }).parse(req.body);
     const headers = {
       'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      'Accept-Language': 'pt-BR,pt;q=0.9',
+      'Accept': 'text/html,application/xhtml+xml',
+      'Accept-Language': 'pt-BR,pt;q=0.9,en;q=0.8',
     };
     const response = await fetch(url, { headers, redirect: 'follow' });
     const html = await response.text();
-    const name =
-      html.match(/<meta[^>]*property="og:title"[^>]*content="([^"]+)"/i)?.[1]?.replace(/&amp;/g, '&') ??
-      html.match(/<meta[^>]*content="([^"]+)"[^>]*property="og:title"/i)?.[1]?.replace(/&amp;/g, '&') ??
-      null;
-    const image =
-      html.match(/<meta[^>]*property="og:image"[^>]*content="([^"]+)"/i)?.[1] ??
-      html.match(/<meta[^>]*content="([^"]+)"[^>]*property="og:image"/i)?.[1] ??
-      null;
-    const priceMatch =
-      html.match(/"price":\s*(\d+)/) ??
-      html.match(/"formatted_price":\s*"R\$\s*([\d,.]+)"/) ??
-      html.match(/R\$\s*([\d,.]+)/);
-    let price: number | null = null;
-    if (priceMatch) {
-      const raw = priceMatch[1].replace(/\./g, '').replace(',', '.');
-      const n = parseFloat(raw);
-      if (!Number.isNaN(n)) price = n <= 100000 ? n : n / 100;
-    }
-    res.json({ name, price, image, sourceUrl: url });
+    const data = parseShopeePage(html, url);
+    res.json({
+      ...data,
+      image: data.images?.[0] ?? null,
+    });
   } catch (e) {
     next(e);
   }

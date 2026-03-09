@@ -302,10 +302,17 @@ export function AdminProductForm() {
     if (!url?.trim()) return;
     setImportingShopee(true);
     try {
-      const { data } = await api.post<{ name?: string; price?: number; image?: string; sourceUrl?: string }>(
-        '/admin/products/import-shopee',
-        { url: url.trim() }
-      );
+      const { data } = await api.post<{
+        name?: string;
+        price?: number;
+        image?: string;
+        images?: string[];
+        stock?: number;
+        sourceUrl?: string;
+      }>('/admin/products/import-shopee', { url: url.trim() });
+      const imageList = Array.isArray(data.images) && data.images.length > 0
+        ? data.images.join('\n')
+        : data.image ?? '';
       setValues((prev) => ({
         ...prev,
         ...(data.name && { name: data.name }),
@@ -313,7 +320,8 @@ export function AdminProductForm() {
           costPrice: String(data.price),
           price: String(Math.round(data.price * 1.15 * 100) / 100),
         }),
-        ...(data.image && { images: data.image }),
+        ...(imageList && { images: imageList }),
+        ...(data.stock != null && data.stock >= 0 && { stock: String(data.stock) }),
         ...(data.sourceUrl && { sourceUrl: data.sourceUrl }),
       }));
       toast.success(data.name ? 'Dados da Shopee preenchidos (revise e salve)' : 'Abra o link e preencha manualmente se necessário');
