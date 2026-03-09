@@ -218,6 +218,8 @@ type ProductFormValues = {
   slug: string;
   description: string;
   price: string;
+  costPrice: string;
+  sourceUrl: string;
   compareAtPrice: string;
   stock: string;
   sku: string;
@@ -239,6 +241,8 @@ export function AdminProductForm() {
     slug: '',
     description: '',
     price: '',
+    costPrice: '',
+    sourceUrl: '',
     compareAtPrice: '',
     stock: '0',
     sku: '',
@@ -247,6 +251,7 @@ export function AdminProductForm() {
     published: true,
     images: '',
   });
+  const [importingShopee, setImportingShopee] = useState(false);
 
   useEffect(() => {
     if (!isEdit) return;
@@ -259,6 +264,8 @@ export function AdminProductForm() {
           slug: p.slug ?? '',
           description: p.description ?? '',
           price: String(p.price ?? ''),
+          costPrice: p.costPrice != null ? String(p.costPrice) : '',
+          sourceUrl: p.sourceUrl ?? '',
           compareAtPrice: p.compareAtPrice ? String(p.compareAtPrice) : '',
           stock: String(p.stock ?? '0'),
           sku: p.sku ?? '',
@@ -280,10 +287,41 @@ export function AdminProductForm() {
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
   ) => {
     const { name, value, type, checked } = e.target as HTMLInputElement;
-    setValues((prev) => ({
-      ...prev,
-      [name]: type === 'checkbox' ? checked : value,
-    }));
+    setValues((prev) => {
+      const next = { ...prev, [name]: type === 'checkbox' ? checked : value };
+      if (name === 'costPrice' && value && !prev.price) {
+        const cost = parseFloat(value.replace(',', '.'));
+        if (!Number.isNaN(cost)) next.price = String(Math.round(cost * 1.15 * 100) / 100);
+      }
+      return next;
+    });
+  };
+
+  const handleImportShopee = async () => {
+    const url = window.prompt('Cole o link do produto na Shopee (shopee.com.br):');
+    if (!url?.trim()) return;
+    setImportingShopee(true);
+    try {
+      const { data } = await api.post<{ name?: string; price?: number; image?: string; sourceUrl?: string }>(
+        '/admin/products/import-shopee',
+        { url: url.trim() }
+      );
+      setValues((prev) => ({
+        ...prev,
+        ...(data.name && { name: data.name }),
+        ...(data.price != null && {
+          costPrice: String(data.price),
+          price: String(Math.round(data.price * 1.15 * 100) / 100),
+        }),
+        ...(data.image && { images: data.image }),
+        ...(data.sourceUrl && { sourceUrl: data.sourceUrl }),
+      }));
+      toast.success(data.name ? 'Dados da Shopee preenchidos (revise e salve)' : 'Abra o link e preencha manualmente se necessário');
+    } catch (e) {
+      toast.error((e as Error).message || 'Não foi possível importar. Cole o link e preencha manualmente.');
+    } finally {
+      setImportingShopee(false);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -300,6 +338,8 @@ export function AdminProductForm() {
         slug: values.slug || undefined,
         description: values.description || undefined,
         price: Number(values.price),
+        costPrice: values.costPrice ? Number(values.costPrice.replace(',', '.')) : undefined,
+        sourceUrl: values.sourceUrl?.trim() || undefined,
         compareAtPrice: values.compareAtPrice ? Number(values.compareAtPrice) : undefined,
         stock: Number(values.stock),
         sku: values.sku || undefined,
@@ -349,9 +389,19 @@ export function AdminProductForm() {
         ← Voltar para lista
       </button>
       <div className="card p-6">
-        <h2 className="text-lg font-semibold text-gray-900">
-          {isEdit ? 'Editar produto' : 'Novo produto'}
-        </h2>
+        <div className="flex items-center justify-between gap-4">
+          <h2 className="text-lg font-semibold text-gray-900">
+            {isEdit ? 'Editar produto' : 'Novo produto'}
+          </h2>
+          <button
+            type="button"
+            onClick={handleImportShopee}
+            disabled={importingShopee}
+            className="rounded-lg border border-primary-500 bg-white px-3 py-1.5 text-sm font-medium text-primary-600 hover:bg-primary-50 disabled:opacity-50"
+          >
+            {importingShopee ? 'Importando...' : 'Importar da Shopee'}
+          </button>
+        </div>
         <form onSubmit={handleSubmit} className="mt-4 space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700">Nome</label>
@@ -361,6 +411,43 @@ export function AdminProductForm() {
               onChange={handleChange}
               className="input mt-1"
               required
+            />
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Preço de venda (R$)</label>
+              <input
+                name="price"
+                type="text"
+                inputMode="decimal"
+                value={values.price}
+                onChange={handleChange}
+                className="input mt-1"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Preço de custo / Shopee (R$)</label>
+              <input
+                name="costPrice"
+                type="text"
+                inputMode="decimal"
+                value={values.costPrice}
+                onChange={handleChange}
+                className="input mt-1"
+                placeholder="Preço na Shopee — venda = +15%"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Link do produto na Shopee</label>
+            <input
+              name="sourceUrl"
+              type="url"
+              value={values.sourceUrl}
+              onChange={handleChange}
+              className="input mt-1"
+              placeholder="https://shopee.com.br/..."
             />
           </div>
           <div>
@@ -458,34 +545,18 @@ export function AdminProductForm() {
               );
             })()}
           </div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Preço</label>
-              <input
-                name="price"
-                type="number"
-                min="0"
-                step="0.01"
-                value={values.price}
-                onChange={handleChange}
-                className="input mt-1"
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700">
-                Preço de comparação (opcional)
-              </label>
-              <input
-                name="compareAtPrice"
-                type="number"
-                min="0"
-                step="0.01"
-                value={values.compareAtPrice}
-                onChange={handleChange}
-                className="input mt-1"
-              />
-            </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700">
+              Preço de comparação (opcional)
+            </label>
+            <input
+              name="compareAtPrice"
+              type="text"
+              inputMode="decimal"
+              value={values.compareAtPrice}
+              onChange={handleChange}
+              className="input mt-1"
+            />
           </div>
           <div className="grid gap-4 sm:grid-cols-3">
             <div>
@@ -570,6 +641,8 @@ type AdminOrder = {
   shippingCity?: string;
   shippingState?: string;
   shippingZip?: string;
+  shopeeOrderId?: string | null;
+  shopeePlacedAt?: string | null;
 };
 
 export function AdminOrders() {
@@ -577,6 +650,7 @@ export function AdminOrders() {
   const [orders, setOrders] = useState<AdminOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [shopeeId, setShopeeId] = useState<string | null>(null);
 
   const load = () => {
     setLoading(true);
@@ -603,6 +677,25 @@ export function AdminOrders() {
       .finally(() => setUpdatingId(null));
   };
 
+  const markShopeeOrder = (orderId: string) => {
+    const id = window.prompt('ID do pedido na Shopee (opcional):');
+    setShopeeId(orderId);
+    api
+      .patch(`/admin/orders/${orderId}/shopee`, { shopeeOrderId: id || undefined })
+      .then((res) => {
+        toast.success('Marcado como pedido na Shopee');
+        setOrders((prev) =>
+          prev.map((o) =>
+            o.id === orderId
+              ? { ...o, shopeeOrderId: res.data.shopeeOrderId ?? null, shopeePlacedAt: res.data.shopeePlacedAt ?? null }
+              : o
+          )
+        );
+      })
+      .catch((e: Error) => toast.error(e.message))
+      .finally(() => setShopeeId(null));
+  };
+
   const formatDate = (s: string) => new Date(s).toLocaleString('pt-BR');
 
   return (
@@ -627,6 +720,7 @@ export function AdminOrders() {
                 <th className="px-4 py-2 text-left font-semibold text-gray-700">Total</th>
                 <th className="px-4 py-2 text-left font-semibold text-gray-700">Entrega</th>
                 <th className="px-4 py-2 text-left font-semibold text-gray-700">Itens</th>
+                <th className="px-4 py-2 text-left font-semibold text-gray-700">Shopee</th>
                 <th className="px-4 py-2 text-right font-semibold text-gray-700">Ações</th>
               </tr>
             </thead>
@@ -650,6 +744,22 @@ export function AdminOrders() {
                     {o.items?.length
                       ? o.items.map((i) => `${i.name} (${i.quantity}x)`).join(', ')
                       : '-'}
+                  </td>
+                  <td className="px-4 py-2">
+                    {o.shopeePlacedAt ? (
+                      <span className="text-xs text-green-600" title={o.shopeeOrderId || undefined}>
+                        ✓ {o.shopeeOrderId || 'Pedido feito'}
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => markShopeeOrder(o.id)}
+                        disabled={shopeeId === o.id}
+                        className="rounded border border-gray-300 bg-white px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                      >
+                        {shopeeId === o.id ? '...' : 'Pedido Shopee'}
+                      </button>
+                    )}
                   </td>
                   <td className="px-4 py-2 text-right">
                     <div className="flex items-center justify-end gap-2">

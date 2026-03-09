@@ -84,21 +84,23 @@ model Category {
 }
 
 model Product {
-  id          String   @id @default(uuid())
-  name        String
-  slug        String   @unique
-  description String?
-  price       Decimal  @db.Decimal(10, 2)
+  id            String   @id @default(uuid())
+  name          String
+  slug          String   @unique
+  description   String?
+  price         Decimal  @db.Decimal(10, 2)
+  costPrice     Decimal? @map("cost_price") @db.Decimal(10, 2)
+  sourceUrl     String?  @map("source_url")
   compareAtPrice Decimal? @map("compare_at_price") @db.Decimal(10, 2)
-  stock       Int      @default(0)
-  sku         String?  @unique
-  categoryId  String?  @map("category_id")
-  category    Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-  images      String[] @default([])
-  featured    Boolean  @default(false)
-  published   Boolean  @default(true)
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  stock         Int      @default(0)
+  sku           String?  @unique
+  categoryId    String?  @map("category_id")
+  category      Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  images        String[] @default([])
+  featured      Boolean  @default(false)
+  published     Boolean  @default(true)
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
 
   reviews      Review[]
   cartItems    CartItem[]
@@ -182,6 +184,8 @@ model Order {
   shippingCpf     String?    @map("shipping_cpf")
   shippingPhone   String?    @map("shipping_phone")
   trackingCode    String?    @map("tracking_code")
+  shopeeOrderId   String?    @map("shopee_order_id")
+  shopeePlacedAt  DateTime?  @map("shopee_placed_at")
   createdAt       DateTime   @default(now()) @map("created_at")
   updatedAt       DateTime   @updatedAt @map("updated_at")
 

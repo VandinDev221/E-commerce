@@ -21,6 +21,8 @@ const productSchema = z.object({
   slug: z.string().min(1).optional(),
   description: z.string().optional(),
   price: z.number().min(0),
+  costPrice: z.number().min(0).optional().nullable(),
+  sourceUrl: z.string().url().optional().nullable().or(z.literal('')),
   compareAtPrice: z.number().min(0).optional(),
   stock: z.number().int().min(0),
   sku: z.string().optional(),
@@ -49,6 +51,7 @@ router.get('/products', async (_req, res, next) => {
       ...p,
       images: normalizeProductImages(p.images, p.name),
       price: Number(p.price),
+      costPrice: p.costPrice != null ? Number(p.costPrice) : null,
       compareAtPrice: p.compareAtPrice ? Number(p.compareAtPrice) : null,
     })));
   } catch (e) {
@@ -63,6 +66,13 @@ router.post('/products', upload.array('images', 10), async (req: AuthRequest, re
     const existing = await prisma.product.findUnique({ where: { slug } });
     if (existing) throw new AppError('Slug já existe', 400);
 
+    let price = body.price;
+    if (body.costPrice != null && body.costPrice > 0) {
+      price = Math.round(body.costPrice * 1.15 * 100) / 100;
+    }
+    const sourceUrl = body.sourceUrl && body.sourceUrl !== '' ? body.sourceUrl : null;
+    const costPrice = body.costPrice ?? null;
+
     const files = req.files as Express.Multer.File[] | undefined;
     let images: string[] = Array.isArray(body.images) ? [...body.images] : [];
     if (files?.length) {
@@ -75,14 +85,22 @@ router.post('/products', upload.array('images', 10), async (req: AuthRequest, re
 
     const product = await prisma.product.create({
       data: {
-        ...body,
+        name: body.name,
         slug,
+        description: body.description ?? null,
+        price,
+        costPrice,
+        sourceUrl,
+        compareAtPrice: body.compareAtPrice ?? null,
+        stock: body.stock ?? 0,
+        sku: body.sku ?? null,
+        categoryId: body.categoryId ?? null,
         images,
         featured: body.featured ?? false,
         published: body.published ?? true,
       },
     });
-    res.status(201).json({ ...product, price: Number(product.price) });
+    res.status(201).json({ ...product, price: Number(product.price), costPrice: product.costPrice != null ? Number(product.costPrice) : null });
   } catch (e) {
     next(e);
   }
@@ -110,6 +128,8 @@ router.get('/products/:id', async (req, res, next) => {
       slug: product.slug,
       description: product.description ?? null,
       price: Number(product.price),
+      costPrice: product.costPrice != null ? Number(product.costPrice) : null,
+      sourceUrl: product.sourceUrl ?? null,
       compareAtPrice: product.compareAtPrice != null ? Number(product.compareAtPrice) : null,
       stock: product.stock,
       sku: product.sku ?? null,
@@ -145,12 +165,54 @@ router.put('/products/:id', upload.array('images', 10), async (req: AuthRequest,
     if (body.images !== undefined) images = body.images as string[];
 
     const slug = body.slug ?? product.slug;
+    let updateData: Record<string, unknown> = { ...body, images };
+    if (body.costPrice != null && body.costPrice > 0 && body.price == null) {
+      updateData.price = Math.round(body.costPrice * 1.15 * 100) / 100;
+    }
+    if (body.sourceUrl === '') updateData.sourceUrl = null;
     const updated = await prisma.product.update({
       where: { id: req.params.id },
-      data: { ...body, images },
+      data: updateData as Parameters<typeof prisma.product.update>[0]['data'],
     });
     await cacheDel(`product:${product.slug}`);
-    res.json({ ...updated, price: Number(updated.price) });
+    res.json({
+      ...updated,
+      price: Number(updated.price),
+      costPrice: updated.costPrice != null ? Number(updated.costPrice) : null,
+    });
+  } catch (e) {
+    next(e);
+  }
+});
+
+router.post('/products/import-shopee', async (req, res, next) => {
+  try {
+    const { url } = z.object({ url: z.string().url().refine((u) => u.includes('shopee'), 'URL deve ser da Shopee') }).parse(req.body);
+    const headers = {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      'Accept-Language': 'pt-BR,pt;q=0.9',
+    };
+    const response = await fetch(url, { headers, redirect: 'follow' });
+    const html = await response.text();
+    const name =
+      html.match(/<meta[^>]*property="og:title"[^>]*content="([^"]+)"/i)?.[1]?.replace(/&amp;/g, '&') ??
+      html.match(/<meta[^>]*content="([^"]+)"[^>]*property="og:title"/i)?.[1]?.replace(/&amp;/g, '&') ??
+      null;
+    const image =
+      html.match(/<meta[^>]*property="og:image"[^>]*content="([^"]+)"/i)?.[1] ??
+      html.match(/<meta[^>]*content="([^"]+)"[^>]*property="og:image"/i)?.[1] ??
+      null;
+    const priceMatch =
+      html.match(/"price":\s*(\d+)/) ??
+      html.match(/"formatted_price":\s*"R\$\s*([\d,.]+)"/) ??
+      html.match(/R\$\s*([\d,.]+)/);
+    let price: number | null = null;
+    if (priceMatch) {
+      const raw = priceMatch[1].replace(/\./g, '').replace(',', '.');
+      const n = parseFloat(raw);
+      if (!Number.isNaN(n)) price = n <= 100000 ? n : n / 100;
+    }
+    res.json({ name, price, image, sourceUrl: url });
   } catch (e) {
     next(e);
   }
@@ -230,6 +292,8 @@ router.get('/orders', async (_req, res, next) => {
       shippingCost: Number(o.shippingCost),
       discount: Number(o.discount),
       total: Number(o.total),
+      shopeeOrderId: o.shopeeOrderId ?? null,
+      shopeePlacedAt: o.shopeePlacedAt?.toISOString() ?? null,
     })));
   } catch (e) {
     next(e);
@@ -249,6 +313,8 @@ router.get('/orders/:id', async (req, res, next) => {
       shippingCost: Number(order.shippingCost),
       discount: Number(order.discount),
       total: Number(order.total),
+      shopeeOrderId: order.shopeeOrderId ?? null,
+      shopeePlacedAt: order.shopeePlacedAt?.toISOString() ?? null,
     });
   } catch (e) {
     next(e);
@@ -265,6 +331,26 @@ router.patch('/orders/:id/status', async (req, res, next) => {
       data: { status, ...(status === 'SHIPPED' && { trackingCode: `BR${Date.now()}` }) },
     });
     res.json(order);
+  } catch (e) {
+    next(e);
+  }
+});
+
+router.patch('/orders/:id/shopee', async (req, res, next) => {
+  try {
+    const body = z.object({ shopeeOrderId: z.string().optional() }).parse(req.body);
+    const order = await prisma.order.update({
+      where: { id: req.params.id },
+      data: {
+        shopeeOrderId: body.shopeeOrderId ?? null,
+        shopeePlacedAt: new Date(),
+      },
+    });
+    res.json({
+      id: order.id,
+      shopeeOrderId: order.shopeeOrderId,
+      shopeePlacedAt: order.shopeePlacedAt?.toISOString() ?? null,
+    });
   } catch (e) {
     next(e);
   }
