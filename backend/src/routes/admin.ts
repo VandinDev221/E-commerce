@@ -722,6 +722,30 @@ router.post('/products/import-shopee-home', async (req, res, next) => {
     }
     importedRaw = dedupedRaw;
 
+    // Se um lote vier "viciado" com a mesma imagem em quase todos os itens,
+    // substitui por fallback individual para evitar catálogo visualmente duplicado.
+    if (importedRaw.length >= 10) {
+      const imageFrequency = new Map<string, number>();
+      for (const item of importedRaw) {
+        const primary = item.images.find((img) => !isPlaceholderImage(img)) ?? item.images[0] ?? '';
+        if (!primary) continue;
+        imageFrequency.set(primary, (imageFrequency.get(primary) ?? 0) + 1);
+      }
+      const dominant = Array.from(imageFrequency.entries()).sort((a, b) => b[1] - a[1])[0];
+      if (dominant && dominant[1] / importedRaw.length >= 0.6) {
+        importedRaw = importedRaw.map((item) => {
+          const primary = item.images.find((img) => !isPlaceholderImage(img)) ?? item.images[0] ?? '';
+          if (primary === dominant[0]) {
+            return {
+              ...item,
+              images: [getDefaultImageUrl(item.name)],
+            };
+          }
+          return item;
+        });
+      }
+    }
+
     const existingCategories = await prisma.category.findMany({
       where: { slug: { in: Array.from(sectionsNeeded) } },
       select: { id: true, slug: true },
