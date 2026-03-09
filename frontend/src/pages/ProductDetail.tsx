@@ -296,6 +296,8 @@ export default function ProductDetail() {
                   <img
                     src={p.images?.[0] || getDefaultImageUrl(p.name)}
                     alt={p.name}
+                    loading="lazy"
+                    decoding="async"
                     className="h-full w-full object-cover"
                   />
                 </div>

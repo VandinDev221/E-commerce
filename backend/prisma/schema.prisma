@@ -193,8 +193,8 @@ model OrderItem {
   id        String   @id @default(uuid())
   orderId   String   @map("order_id")
   order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  productId String   @map("product_id")
-  product   Product  @relation(fields: [productId], references: [id], onDelete: Restrict)
+  productId String?  @map("product_id")
+  product   Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
   name      String
   price     Decimal  @db.Decimal(10, 2)
   quantity  Int

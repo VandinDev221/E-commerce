@@ -52,6 +52,7 @@ export default function Cart() {
             <img
               src={item.image || getDefaultImageUrl(item.name)}
               alt={item.name}
+              loading="lazy"
               className="h-24 w-24 rounded-lg object-cover"
             />
             <div className="flex-1">

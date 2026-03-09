@@ -158,9 +158,27 @@ router.put('/products/:id', upload.array('images', 10), async (req: AuthRequest,
 
 router.delete('/products/:id', async (req, res, next) => {
   try {
-    const product = await prisma.product.findUnique({ where: { id: req.params.id } });
+    const id = req.params.id;
+    const product = await prisma.product.findUnique({ where: { id } });
     if (!product) throw new AppError('Produto não encontrado', 404);
-    await prisma.product.delete({ where: { id: req.params.id } });
+
+    const orderItems = await prisma.orderItem.findMany({
+      where: { productId: id },
+      include: { order: { select: { status: true } } },
+    });
+
+    const statusesQueImpedemExclusao = ['PENDING', 'PROCESSING', 'PAID', 'SHIPPED'];
+    const algumPedidoEmAndamento = orderItems.some((item) =>
+      statusesQueImpedemExclusao.includes(item.order.status)
+    );
+    if (algumPedidoEmAndamento) {
+      throw new AppError(
+        'Não é possível excluir: este produto está em pedidos que ainda não foram entregues.',
+        400
+      );
+    }
+
+    await prisma.product.delete({ where: { id } });
     await cacheDel(`product:${product.slug}`);
     res.json({ message: 'Produto removido' });
   } catch (e) {

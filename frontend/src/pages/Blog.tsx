@@ -65,6 +65,8 @@ export default function Blog() {
                     <img
                       src={post.coverImage || getDefaultImageUrl(post.title)}
                       alt=""
+                      loading="lazy"
+                      decoding="async"
                       className="h-full w-full object-cover"
                     />
                   </div>
