@@ -244,7 +244,17 @@ function parseShopeePage(html: string, url: string) {
 
 router.post('/products/import-shopee', async (req, res, next) => {
   try {
-    const { url } = z.object({ url: z.string().url().refine((u) => u.includes('shopee'), 'URL deve ser da Shopee') }).parse(req.body);
+    const { url } = z.object({
+      url: z.string().url().refine((u) => {
+        const hostname = new URL(u).hostname.toLowerCase();
+        return (
+          hostname === 'shopee.com.br'
+          || hostname.endsWith('.shopee.com.br')
+          || hostname === 'shopee.com'
+          || hostname.endsWith('.shopee.com')
+        );
+      }, 'URL deve ser de um domínio da Shopee'),
+    }).parse(req.body);
     const headers = {
       'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
       'Accept': 'text/html,application/xhtml+xml',
@@ -383,11 +393,12 @@ router.patch('/orders/:id/status', async (req, res, next) => {
 router.patch('/orders/:id/shopee', async (req, res, next) => {
   try {
     const body = z.object({ shopeeOrderId: z.string().optional() }).parse(req.body);
+    const normalizedShopeeOrderId = body.shopeeOrderId?.trim() || null;
     const order = await prisma.order.update({
       where: { id: req.params.id },
       data: {
-        shopeeOrderId: body.shopeeOrderId ?? null,
-        shopeePlacedAt: new Date(),
+        shopeeOrderId: normalizedShopeeOrderId,
+        shopeePlacedAt: normalizedShopeeOrderId ? new Date() : null,
       },
     });
     res.json({
