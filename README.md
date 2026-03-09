@@ -141,6 +141,15 @@ Para importar **todos os produtos encontrados** na Shopee com margem automática
    - `cd backend && SHOPEE_INPUT_FILE=/caminho/produtos.json npm run shopee:sync`
    - também funciona no comando full: `cd backend && SHOPEE_INPUT_FILE=/caminho/produtos.json npm run shopee:full-sync`
    - comando estável direto por arquivo: `cd backend && npm run shopee:import-file -- /caminho/produtos.json`
+3. Via coleta manual em massa no navegador logado (anti-bloqueio):
+   - abra uma busca/categoria da Shopee no seu navegador já logado
+   - pressione `F12` > aba `Console`
+   - cole o conteúdo de `backend/scripts/shopee-devtools-collector.js` e pressione Enter
+   - o script faz scroll automático, coleta os cards visíveis e baixa um arquivo `shopee_products_*.json`
+   - repita em outras páginas/categorias e depois una tudo com:
+     - `cd backend && npm run shopee:merge-json -- --out ./tmp/produtos_merged.json ./tmp/shopee_products_1.json ./tmp/shopee_products_2.json`
+   - importe em lote:
+     - `cd backend && npm run shopee:import-file -- ./tmp/produtos_merged.json`
 
 Formato do JSON:
 - `[{"name":"Produto","price":99.9,"image":"https://...","sourceUrl":"https://shopee.com.br/..."}]`
@@ -152,6 +161,7 @@ Observações:
 - O backend aplica `price = costPrice * 1.15` automaticamente.
 - Produtos são categorizados automaticamente (eletrônicos, acessórios, casa e cozinha etc.).
 - Variáveis úteis para full sync: `SHOPEE_KEYWORDS`, `SHOPEE_PAGES`, `SHOPEE_LIMIT`, `SHOPEE_BATCH_SIZE`, `SHOPEE_FEATURED`, `SHOPEE_OUTPUT_FILE`, `SHOPEE_DRY_RUN=true`.
+- Quando a Shopee bloquear automação, prefira a coleta via DevTools + `shopee:merge-json` + `shopee:import-file`.
 
 ---
 
