@@ -312,6 +312,19 @@ router.patch('/users/:id/role', async (req, res, next) => {
   }
 });
 
+router.delete('/users/:id', async (req: AuthRequest, res, next) => {
+  try {
+    const { id } = req.params;
+    if (req.user?.id === id) {
+      throw new AppError('Você não pode excluir sua própria conta', 400);
+    }
+    await prisma.user.delete({ where: { id } });
+    res.status(204).send();
+  } catch (e) {
+    next(e);
+  }
+});
+
 // Coupons
 router.get('/coupons', async (_req, res, next) => {
   try {

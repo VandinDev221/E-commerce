@@ -1,9 +1,11 @@
 import { Outlet, Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useEffect, useState } from 'react';
+import { useSelector } from 'react-redux';
 import { FiPackage, FiShoppingBag, FiUsers, FiTag, FiBarChart2, FiEdit2, FiTrash2, FiDollarSign, FiPlus, FiChevronLeft, FiChevronRight, FiPrinter } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 import { api } from '../api/client';
 import { formatAddressLine } from '../utils/address';
+import type { RootState } from '../store';
 
 const nav = [
   { to: '/admin', icon: FiBarChart2, label: 'Dashboard' },
@@ -687,10 +689,12 @@ export function AdminOrders() {
 type AdminUser = { id: string; email: string; name: string | null; role: string; createdAt: string };
 
 export function AdminUsers() {
+  const currentUser = useSelector((s: RootState) => s.auth.user);
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({
     name: '',
@@ -747,6 +751,19 @@ export function AdminUsers() {
       })
       .catch((e: Error) => toast.error(e.message))
       .finally(() => setUpdatingId(null));
+  };
+
+  const handleDelete = (user: AdminUser) => {
+    if (!window.confirm(`Excluir o usuário "${user.name || user.email}"? Esta ação não pode ser desfeita.`)) return;
+    setDeletingId(user.id);
+    api
+      .delete(`/admin/users/${user.id}`)
+      .then(() => {
+        toast.success('Usuário excluído');
+        setUsers((prev) => prev.filter((u) => u.id !== user.id));
+      })
+      .catch((e: Error) => toast.error(e.message))
+      .finally(() => setDeletingId(null));
   };
 
   const formatDate = (s: string) => new Date(s).toLocaleString('pt-BR');
@@ -858,15 +875,27 @@ export function AdminUsers() {
                   </td>
                   <td className="px-4 py-2 text-gray-500">{formatDate(u.createdAt)}</td>
                   <td className="px-4 py-2 text-right">
-                    <select
-                      value={u.role}
-                      disabled={updatingId === u.id}
-                      onChange={(e) => updateRole(u.id, e.target.value as 'USER' | 'ADMIN')}
-                      className="rounded border border-gray-300 px-2 py-1 text-xs disabled:opacity-50"
-                    >
-                      <option value="USER">Usuário</option>
-                      <option value="ADMIN">Admin</option>
-                    </select>
+                    <div className="flex items-center justify-end gap-2">
+                      <select
+                        value={u.role}
+                        disabled={updatingId === u.id}
+                        onChange={(e) => updateRole(u.id, e.target.value as 'USER' | 'ADMIN')}
+                        className="rounded border border-gray-300 px-2 py-1 text-xs disabled:opacity-50"
+                      >
+                        <option value="USER">Usuário</option>
+                        <option value="ADMIN">Admin</option>
+                      </select>
+                      <button
+                        type="button"
+                        disabled={currentUser?.id === u.id || deletingId === u.id}
+                        onClick={() => handleDelete(u)}
+                        className="rounded p-1.5 text-red-600 hover:bg-red-50 disabled:opacity-40 disabled:hover:bg-transparent"
+                        title={currentUser?.id === u.id ? 'Não é possível excluir sua própria conta' : 'Excluir usuário'}
+                        aria-label="Excluir usuário"
+                      >
+                        <FiTrash2 className="h-4 w-4" />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
