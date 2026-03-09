@@ -156,6 +156,20 @@ function normalizeShopeeImages(images: Array<string | null | undefined> | null |
   return [getDefaultImageUrl(productName)];
 }
 
+function fallbackProductNameFromUrl(sourceUrl: string) {
+  try {
+    const parsed = new URL(sourceUrl);
+    const raw = parsed.pathname.split('/').filter(Boolean).pop() ?? '';
+    if (!raw) return null;
+    const withoutIds = raw.replace(/-i\.\d+\.\d+$/i, '').replace(/\/product\/\d+\/\d+$/i, '');
+    const decoded = decodeURIComponent(withoutIds).replace(/[-_]+/g, ' ').trim();
+    if (!decoded || decoded.length < 4) return null;
+    return decoded.charAt(0).toUpperCase() + decoded.slice(1);
+  } catch {
+    return null;
+  }
+}
+
 function decodeShopeeText(raw: string | null | undefined) {
   if (!raw) return null;
   const withUnicode = raw.replace(/\\u([0-9a-fA-F]{4})/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)));
@@ -436,6 +450,7 @@ function parseShopeePage(html: string, url: string) {
     html.match(/<meta[^>]*property="og:description"[^>]*content="([^"]+)"/i)?.[1] ??
     html.match(/<meta[^>]*content="([^"]+)"[^>]*property="og:description"/i)?.[1] ??
     html.match(/<meta[^>]*name="description"[^>]*content="([^"]+)"/i)?.[1] ??
+    html.match(/"seo_description":\s*"((?:\\.|[^"\\])+)"/i)?.[1] ??
     descriptionJson ??
     null;
 
@@ -452,6 +467,22 @@ function parseShopeePage(html: string, url: string) {
     const u = m.replace(/"image":\s*"/i, '').replace(/"$/, '').replace(/\\u002F/g, '/');
     if (u && !images.includes(u)) images.push(u);
   });
+
+  const imageHashBlocks = html.match(/"images":\s*\[[^\]]+\]/gi) ?? [];
+  for (const block of imageHashBlocks) {
+    const hashMatches = block.match(/"([A-Za-z0-9_-]{20,})"/g) ?? [];
+    for (const rawHash of hashMatches) {
+      const hash = rawHash.replace(/"/g, '');
+      const normalized = normalizeShopeeImageUrl(hash);
+      if (normalized && !images.includes(normalized)) images.push(normalized);
+    }
+  }
+  const imageHashSingles = html.match(/"image":\s*"([A-Za-z0-9_-]{20,})"/gi) ?? [];
+  for (const m of imageHashSingles) {
+    const hash = m.replace(/"image":\s*"/i, '').replace(/"$/, '');
+    const normalized = normalizeShopeeImageUrl(hash);
+    if (normalized && !images.includes(normalized)) images.push(normalized);
+  }
 
   let price: number | null = null;
   const priceCents = html.match(/"price":\s*(\d{3,})/);
@@ -479,7 +510,7 @@ function parseShopeePage(html: string, url: string) {
   if (stockM) stock = parseInt(stockM[1], 10);
 
   return {
-    name: decodeShopeeText(name),
+    name: decodeShopeeText(name) ?? fallbackProductNameFromUrl(url),
     description: decodeShopeeText(description),
     price,
     images: images.length > 0 ? images.slice(0, 8) : null,
@@ -534,7 +565,7 @@ router.post('/products/import-shopee-home', async (req, res, next) => {
     };
 
     const sectionsNeeded = new Set<string>();
-    const importedRaw: Array<{
+    let importedRaw: Array<{
       url: string;
       name: string;
       description: string | null;
@@ -575,6 +606,10 @@ router.post('/products/import-shopee-home', async (req, res, next) => {
           } catch {
             // se falhar enriquecimento, mantém dados enviados
           }
+        }
+
+        if (!parsedDescription || parsedDescription.trim().length < 24) {
+          parsedDescription = 'Produto importado da Shopee. Confira detalhes completos na página de origem.';
         }
 
         const section = inferShopeeSection(parsedName, parsedDescription);
@@ -668,6 +703,24 @@ router.post('/products/import-shopee-home', async (req, res, next) => {
         400
       );
     }
+
+    // Deduplica por URL e por fingerprint de conteúdo para evitar catálogos poluídos por dados repetidos.
+    const seenUrls = new Set<string>();
+    const seenFingerprints = new Set<string>();
+    const dedupedRaw: typeof importedRaw = [];
+    for (const item of importedRaw) {
+      if (seenUrls.has(item.url)) continue;
+      seenUrls.add(item.url);
+
+      const normalizedName = slugify(item.name);
+      const priceFingerprint = item.costPrice.toFixed(2);
+      const primaryImage = item.images.find((img) => !isPlaceholderImage(img)) ?? item.images[0] ?? '';
+      const fingerprint = `${normalizedName}|${priceFingerprint}|${primaryImage}`;
+      if (seenFingerprints.has(fingerprint)) continue;
+      seenFingerprints.add(fingerprint);
+      dedupedRaw.push(item);
+    }
+    importedRaw = dedupedRaw;
 
     const existingCategories = await prisma.category.findMany({
       where: { slug: { in: Array.from(sectionsNeeded) } },
