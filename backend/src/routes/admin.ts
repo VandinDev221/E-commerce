@@ -509,9 +509,13 @@ function parseShopeePage(html: string, url: string) {
   const stockM = html.match(/"stock":\s*(\d+)/) ?? html.match(/"stock_quantity":\s*(\d+)/) ?? html.match(/"quantity":\s*(\d+)/);
   if (stockM) stock = parseInt(stockM[1], 10);
 
+  const decodedName = decodeShopeeText(name);
+  const decodedDescription = decodeShopeeText(description);
+  const validContent = isLikelyShopeeProductContent(decodedName, decodedDescription);
+
   return {
-    name: decodeShopeeText(name) ?? fallbackProductNameFromUrl(url),
-    description: decodeShopeeText(description),
+    name: validContent ? (decodedName ?? fallbackProductNameFromUrl(url)) : (fallbackProductNameFromUrl(url) ?? null),
+    description: validContent ? decodedDescription : null,
     price,
     images: images.length > 0 ? images.slice(0, 8) : null,
     stock,
@@ -524,17 +528,37 @@ router.post('/products/import-shopee', async (req, res, next) => {
     const { url } = z.object({
       url: z.string().url().refine((u) => isShopeeDomain(u), 'URL deve ser de um domínio da Shopee'),
     }).parse(req.body);
+    const normalizedUrl = normalizeShopeeProductUrl(url);
+    if (!normalizedUrl || !isShopeeProductUrl(normalizedUrl)) {
+      throw new AppError('Informe um link real de produto da Shopee', 400);
+    }
+
     const headers = {
       'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
       'Accept': 'text/html,application/xhtml+xml',
       'Accept-Language': 'pt-BR,pt;q=0.9,en;q=0.8',
     };
-    const response = await fetch(url, { headers, redirect: 'follow' });
+    const response = await fetch(normalizedUrl, { headers, redirect: 'follow' });
     const html = await response.text();
-    const data = parseShopeePage(html, url);
+    const data = parseShopeePage(html, normalizedUrl);
+    const realImages = extractValidShopeeImages(data.images);
+    const hasValidText = isLikelyShopeeProductContent(data.name, data.description);
+    const safeName = (hasValidText ? data.name : null) ?? fallbackProductNameFromUrl(normalizedUrl) ?? 'Produto Shopee';
+    const safeDescription = hasValidText ? data.description : null;
+    const safePrice = hasValidText ? data.price : null;
+    const warning = !hasValidText || realImages.length === 0
+      ? 'Shopee bloqueou parte da coleta automática. Nome/link foram preenchidos; complete preço, descrição e imagens reais manualmente.'
+      : null;
+
     res.json({
-      ...data,
-      image: data.images?.[0] ?? null,
+      name: safeName,
+      description: safeDescription,
+      price: safePrice,
+      images: realImages,
+      image: realImages[0] ?? null,
+      stock: Math.max(0, data.stock ?? 0),
+      sourceUrl: normalizedUrl,
+      warning,
     });
   } catch (e) {
     next(e);
