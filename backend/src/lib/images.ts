@@ -1,9 +1,18 @@
-/** Padrão placehold.co 600x600 com texto (ex: Jaqueta+Jeans) */
-const BASE = 'https://placehold.co/600x600?text=';
+/** Placeholder estável por produto (evita dependência de SVG externo). */
+const BASE = 'https://picsum.photos/seed/';
+
+function slugSeed(name: string) {
+  return name
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '') || 'produto';
+}
 
 export function getDefaultImageUrl(name?: string | null): string {
-  if (!name?.trim()) return `${BASE}Produto`;
-  return `${BASE}${encodeURIComponent(name.trim()).replace(/%20/g, '+')}`;
+  const seed = slugSeed(name?.trim() || 'produto');
+  return `${BASE}${seed}/600/600`;
 }
 
 /** Garante que o array de imagens tenha ao menos uma URL (padrão pelo nome). */
