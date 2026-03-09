@@ -3,7 +3,11 @@
 @tailwind utilities;
 
 body {
-  @apply bg-gray-50 text-gray-900 antialiased;
+  @apply bg-gradient-to-b from-slate-50 via-white to-slate-100 text-gray-900 antialiased;
+}
+
+::selection {
+  @apply bg-primary-200 text-primary-900;
 }
 
 @layer components {
@@ -23,6 +27,6 @@ body {
     @apply w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-gray-900 placeholder:text-gray-400 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500;
   }
   .card {
-    @apply rounded-xl border border-gray-200 bg-white shadow-sm;
+    @apply rounded-xl border border-gray-200 bg-white shadow-sm transition-shadow hover:shadow-md;
   }
 }

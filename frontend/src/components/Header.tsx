@@ -18,16 +18,17 @@ export default function Header() {
 
   return (
     <header className="sticky top-0 z-50 border-b border-gray-200 bg-white/95 backdrop-blur">
-      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6">
-        <Link to="/" className="text-xl font-bold text-primary-600">
-          E-commerce
+      <div className="mx-auto flex h-[4.5rem] max-w-7xl items-center justify-between px-4 sm:px-6">
+        <Link to="/" className="leading-none">
+          <span className="block text-xl font-bold tracking-tight text-primary-700">E-commerce</span>
+          <span className="hidden text-[11px] text-gray-500 sm:block">Loja oficial</span>
         </Link>
 
-        <nav className="hidden items-center gap-6 md:flex">
-          <Link to="/products" className="text-gray-600 hover:text-primary-600">
+        <nav className="hidden items-center gap-6 text-sm md:flex">
+          <Link to="/products" className="font-medium text-gray-600 hover:text-primary-600">
             Produtos
           </Link>
-          <Link to="/blog" className="text-gray-600 hover:text-primary-600">
+          <Link to="/blog" className="font-medium text-gray-600 hover:text-primary-600">
             Blog
           </Link>
         </nav>
@@ -119,12 +120,20 @@ export default function Header() {
               </AnimatePresence>
             </div>
           ) : (
-            <Link
-              to="/login"
-              className="hidden rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700 md:inline-block"
-            >
-              Entrar
-            </Link>
+            <div className="hidden items-center gap-2 md:flex">
+              <Link
+                to="/login"
+                className="rounded-lg px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
+              >
+                Entrar
+              </Link>
+              <Link
+                to="/register"
+                className="rounded-lg bg-primary-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-primary-700"
+              >
+                Criar conta
+              </Link>
+            </div>
           )}
 
           <button
