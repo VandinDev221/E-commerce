@@ -117,7 +117,7 @@ function normalizeShopeeImageUrl(raw?: string | null) {
     parsed.hash = '';
     const host = parsed.hostname.toLowerCase();
     if (host.includes('img.susercontent.com')) {
-      if (!/\/file\/[A-Za-z0-9_-]{20,}/.test(parsed.pathname)) return null;
+      if (!/\/file\/[A-Za-z0-9_-]{3,}/.test(parsed.pathname)) return null;
       return parsed.toString();
     }
     if (host.includes('shopee') || host.includes('shopeemobile')) return null;
