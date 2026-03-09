@@ -1,18 +1,18 @@
-/** Placeholder estável por produto (evita dependência de SVG externo). */
-const BASE = 'https://picsum.photos/seed/';
+/** Placeholder PNG com nome do produto (sem imagem aleatória). */
+const BASE = 'https://dummyimage.com/600x600/f3f4f6/111827.png&text=';
 
-function slugSeed(name: string) {
-  return name
+function labelText(name: string) {
+  return (name
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/(^-|-$)/g, '') || 'produto';
+    .replace(/[^a-zA-Z0-9 ]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim() || 'Produto');
 }
 
 export function getDefaultImageUrl(name?: string | null): string {
-  const seed = slugSeed(name?.trim() || 'produto');
-  return `${BASE}${seed}/600/600`;
+  const label = labelText(name?.trim() || 'Produto');
+  return `${BASE}${encodeURIComponent(label).replace(/%20/g, '+')}`;
 }
 
 /** Garante que o array de imagens tenha ao menos uma URL (padrão pelo nome). */
