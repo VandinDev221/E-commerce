@@ -41,6 +41,74 @@ function slugify(s: string) {
     .replace(/(^-|-$)/g, '');
 }
 
+function isShopeeDomain(u: string) {
+  const hostname = new URL(u).hostname.toLowerCase();
+  return (
+    hostname === 'shopee.com.br'
+    || hostname.endsWith('.shopee.com.br')
+    || hostname === 'shopee.com'
+    || hostname.endsWith('.shopee.com')
+  );
+}
+
+function normalizeShopeeProductUrl(rawUrl: string) {
+  const clean = rawUrl
+    .replace(/\\u002F/g, '/')
+    .replace(/\\\//g, '/')
+    .replace(/&amp;/g, '&')
+    .trim();
+  const withProtocol = clean.startsWith('//') ? `https:${clean}` : clean;
+  const normalized = withProtocol.startsWith('/')
+    ? `https://shopee.com.br${withProtocol}`
+    : withProtocol;
+
+  if (!/^https?:\/\//i.test(normalized)) return null;
+  if (!isShopeeDomain(normalized)) return null;
+
+  try {
+    const parsed = new URL(normalized);
+    parsed.hash = '';
+    parsed.search = '';
+    if (parsed.pathname.includes('/product/')) {
+      const m = parsed.pathname.match(/\/product\/(\d+)\/(\d+)/);
+      if (m) {
+        parsed.pathname = `/product/${m[1]}/${m[2]}`;
+      }
+    }
+    return parsed.toString();
+  } catch {
+    return null;
+  }
+}
+
+function extractShopeeProductUrls(html: string) {
+  const urls = new Set<string>();
+  const absoluteSlug = html.match(/https?:\/\/[^"'\s>]*shopee[^"'\s>]*-i\.\d+\.\d+/gi) ?? [];
+  const absoluteProduct = html.match(/https?:\/\/[^"'\s>]*shopee[^"'\s>]*\/product\/\d+\/\d+/gi) ?? [];
+  const relativeSlug = html.match(/\/[^"'\s>]*-i\.\d+\.\d+/gi) ?? [];
+  const relativeProduct = html.match(/\/product\/\d+\/\d+/gi) ?? [];
+
+  [...absoluteSlug, ...absoluteProduct, ...relativeSlug, ...relativeProduct].forEach((u) => {
+    const normalized = normalizeShopeeProductUrl(u);
+    if (normalized) urls.add(normalized);
+  });
+  return Array.from(urls);
+}
+
+const shopeeSectionRules = [
+  { slug: 'eletronicos', name: 'Eletrônicos', keywords: ['fone', 'bluetooth', 'notebook', 'smartphone', 'camera', 'monitor', 'teclado', 'mouse', 'usb', 'hdmi', 'carregador', 'smartwatch', 'tablet'] },
+  { slug: 'acessorios', name: 'Acessórios', keywords: ['bolsa', 'mochila', 'capa', 'pelicula', 'case', 'carteira', 'oculos', 'relogio', 'joia', 'brinco', 'colar', 'pulseira', 'boné', 'bone'] },
+  { slug: 'casa-e-cozinha', name: 'Casa e Cozinha', keywords: ['cozinha', 'panela', 'frigideira', 'talher', 'cadeira', 'mesa', 'decoracao', 'decoração', 'almofada', 'organizador', 'luminaria', 'luminária', 'tapete'] },
+  { slug: 'moda', name: 'Moda', keywords: ['camisa', 'camiseta', 'blusa', 'calca', 'calça', 'vestido', 'saia', 'jaqueta', 'tenis', 'tênis', 'sapato', 'sandalia', 'sandália', 'shorts'] },
+  { slug: 'beleza', name: 'Beleza', keywords: ['maquiagem', 'perfume', 'shampoo', 'creme', 'hidratante', 'skincare', 'serum', 'sérum', 'cosmetico', 'cosmético'] },
+] as const;
+
+function inferShopeeSection(name: string, description?: string | null) {
+  const text = `${name} ${description ?? ''}`.toLowerCase();
+  const found = shopeeSectionRules.find((rule) => rule.keywords.some((k) => text.includes(k)));
+  return found ?? { slug: 'geral', name: 'Geral', keywords: [] };
+}
+
 router.get('/products', async (_req, res, next) => {
   try {
     const products = await prisma.product.findMany({
@@ -193,6 +261,11 @@ function parseShopeePage(html: string, url: string) {
     html.match(/<meta[^>]*content="([^"]+)"[^>]*property="og:title"/i)?.[1]?.replace(/&amp;/g, '&') ??
     html.match(/"name":\s*"([^"]+)"/)?.[1] ??
     null;
+  const description =
+    html.match(/<meta[^>]*property="og:description"[^>]*content="([^"]+)"/i)?.[1]?.replace(/&amp;/g, '&') ??
+    html.match(/<meta[^>]*content="([^"]+)"[^>]*property="og:description"/i)?.[1]?.replace(/&amp;/g, '&') ??
+    html.match(/<meta[^>]*name="description"[^>]*content="([^"]+)"/i)?.[1]?.replace(/&amp;/g, '&') ??
+    null;
 
   const images: string[] = [];
   const ogImage = html.match(/<meta[^>]*property="og:image"[^>]*content="([^"]+)"/i)?.[1] ?? html.match(/<meta[^>]*content="([^"]+)"[^>]*property="og:image"/i)?.[1];
@@ -235,8 +308,9 @@ function parseShopeePage(html: string, url: string) {
 
   return {
     name: name ? decode(name) : null,
+    description: description ? decode(description) : null,
     price,
-    images: images.length > 0 ? images : null,
+    images: images.length > 0 ? images.slice(0, 8) : null,
     stock,
     sourceUrl: url,
   };
@@ -245,15 +319,7 @@ function parseShopeePage(html: string, url: string) {
 router.post('/products/import-shopee', async (req, res, next) => {
   try {
     const { url } = z.object({
-      url: z.string().url().refine((u) => {
-        const hostname = new URL(u).hostname.toLowerCase();
-        return (
-          hostname === 'shopee.com.br'
-          || hostname.endsWith('.shopee.com.br')
-          || hostname === 'shopee.com'
-          || hostname.endsWith('.shopee.com')
-        );
-      }, 'URL deve ser de um domínio da Shopee'),
+      url: z.string().url().refine((u) => isShopeeDomain(u), 'URL deve ser de um domínio da Shopee'),
     }).parse(req.body);
     const headers = {
       'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -266,6 +332,260 @@ router.post('/products/import-shopee', async (req, res, next) => {
     res.json({
       ...data,
       image: data.images?.[0] ?? null,
+    });
+  } catch (e) {
+    next(e);
+  }
+});
+
+router.post('/products/import-shopee-home', async (req, res, next) => {
+  try {
+    const body = z.object({
+      url: z.string().url().optional(),
+      sectionUrls: z.array(z.string().url()).optional(),
+      productUrls: z.array(z.string().url()).optional(),
+      products: z.array(z.object({
+        name: z.string().min(1),
+        description: z.string().optional(),
+        price: z.number().positive(),
+        image: z.string().url().optional(),
+        images: z.array(z.string().url()).optional(),
+        sourceUrl: z.string().url().optional(),
+      })).optional(),
+      limit: z.number().int().min(1).max(80).optional(),
+      featuredCount: z.number().int().min(0).max(20).optional(),
+    }).parse(req.body);
+
+    const sourceUrl = body.url ?? 'https://shopee.com.br/';
+    if (!isShopeeDomain(sourceUrl)) throw new AppError('A URL base precisa ser da Shopee', 400);
+    const sectionUrls = (body.sectionUrls ?? []).filter((u) => isShopeeDomain(u));
+    const limit = body.limit ?? 24;
+    const featuredCount = body.featuredCount ?? 8;
+
+    const headers = {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      'Accept': 'text/html,application/xhtml+xml',
+      'Accept-Language': 'pt-BR,pt;q=0.9,en;q=0.8',
+    };
+
+    const sectionsNeeded = new Set<string>();
+    const importedRaw: Array<{
+      url: string;
+      name: string;
+      description: string | null;
+      costPrice: number;
+      price: number;
+      images: string[];
+      stock: number;
+      sectionSlug: string;
+      sectionName: string;
+    }> = [];
+    let candidateUrls: string[] = [];
+
+    if (body.products && body.products.length > 0) {
+      const manualProducts = body.products.slice(0, limit);
+      for (let idx = 0; idx < manualProducts.length; idx += 1) {
+        const p = manualProducts[idx];
+        const fallbackSource = `https://shopee.com.br/import/${slugify(p.name) || `item-${idx + 1}`}-${idx + 1}`;
+        const source = p.sourceUrl ? normalizeShopeeProductUrl(p.sourceUrl) : fallbackSource;
+        if (p.sourceUrl && !source) continue;
+        const section = inferShopeeSection(p.name, p.description);
+        const costPrice = Math.round(p.price * 100) / 100;
+        const price = Math.round(costPrice * 1.15 * 100) / 100;
+        sectionsNeeded.add(section.slug);
+        importedRaw.push({
+          url: source ?? fallbackSource,
+          name: p.name,
+          description: p.description ?? null,
+          costPrice,
+          price,
+          images: p.images?.length ? p.images : (p.image ? [p.image] : [getDefaultImageUrl(p.name)]),
+          stock: 0,
+          sectionSlug: section.slug,
+          sectionName: section.name,
+        });
+      }
+    } else {
+      const allProductUrls = new Set<string>();
+      const sources = sectionUrls.length > 0 ? sectionUrls : [sourceUrl];
+      for (const src of sources) {
+        try {
+          const response = await fetch(src, { headers, redirect: 'follow' });
+          const html = await response.text();
+          extractShopeeProductUrls(html).forEach((u) => allProductUrls.add(u));
+        } catch {
+          // ignora fonte quebrada para tentar as outras
+        }
+      }
+
+      (body.productUrls ?? []).forEach((u) => {
+        const normalized = normalizeShopeeProductUrl(u);
+        if (normalized) allProductUrls.add(normalized);
+      });
+
+      candidateUrls = Array.from(allProductUrls).slice(0, limit);
+      if (candidateUrls.length === 0) {
+        throw new AppError(
+          'Não foi possível extrair links da Shopee. Informe links em "productUrls" ou dados em "products".',
+          400
+        );
+      }
+
+      for (const productUrl of candidateUrls) {
+        try {
+          const response = await fetch(productUrl, { headers, redirect: 'follow' });
+          const html = await response.text();
+          const parsed = parseShopeePage(html, productUrl);
+          if (!parsed.name || parsed.price == null || parsed.price <= 0) continue;
+          const section = inferShopeeSection(parsed.name, parsed.description);
+          const costPrice = Math.round(parsed.price * 100) / 100;
+          const price = Math.round(costPrice * 1.15 * 100) / 100;
+          sectionsNeeded.add(section.slug);
+          importedRaw.push({
+            url: productUrl,
+            name: parsed.name,
+            description: parsed.description,
+            costPrice,
+            price,
+            images: parsed.images ?? [getDefaultImageUrl(parsed.name)],
+            stock: parsed.stock != null && parsed.stock >= 0 ? parsed.stock : 0,
+            sectionSlug: section.slug,
+            sectionName: section.name,
+          });
+        } catch {
+          // segue para próximos produtos
+        }
+      }
+    }
+
+    if (importedRaw.length === 0) {
+      throw new AppError('Nenhum produto válido foi extraído da Shopee. Tente outros links.', 400);
+    }
+
+    const existingCategories = await prisma.category.findMany({
+      where: { slug: { in: Array.from(sectionsNeeded) } },
+      select: { id: true, slug: true },
+    });
+    const categoryBySlug = new Map(existingCategories.map((c) => [c.slug, c.id]));
+
+    for (const sectionSlug of sectionsNeeded) {
+      if (categoryBySlug.has(sectionSlug)) continue;
+      const rule = shopeeSectionRules.find((r) => r.slug === sectionSlug);
+      const created = await prisma.category.create({
+        data: {
+          name: rule?.name ?? (sectionSlug === 'geral' ? 'Geral' : sectionSlug),
+          slug: sectionSlug,
+          description: `Produtos importados automaticamente da Shopee (${sectionSlug}).`,
+        },
+        select: { id: true, slug: true },
+      });
+      categoryBySlug.set(created.slug, created.id);
+    }
+
+    let createdCount = 0;
+    let updatedCount = 0;
+    let skippedCount = 0;
+    const importedProducts: Array<{ id: string; name: string; price: number; costPrice: number; section: string; featured: boolean }> = [];
+
+    for (let i = 0; i < importedRaw.length; i += 1) {
+      const item = importedRaw[i];
+      const categoryId = categoryBySlug.get(item.sectionSlug) ?? null;
+      const featured = i < featuredCount;
+      const itemIdMatch = item.url.match(/-i\.(\d+)\.(\d+)/) ?? item.url.match(/\/product\/(\d+)\/(\d+)/);
+      const sku = itemIdMatch ? `SHP-${itemIdMatch[1]}-${itemIdMatch[2]}` : undefined;
+
+      const existingBySource = await prisma.product.findFirst({
+        where: { sourceUrl: item.url },
+        select: { id: true, slug: true },
+      });
+
+      if (existingBySource) {
+        const updated = await prisma.product.update({
+          where: { id: existingBySource.id },
+          data: {
+            name: item.name,
+            description: item.description ?? undefined,
+            costPrice: item.costPrice,
+            price: item.price,
+            images: item.images,
+            stock: item.stock,
+            categoryId,
+            sourceUrl: item.url,
+            featured,
+            published: true,
+            ...(sku && { sku }),
+          },
+          select: { id: true, name: true, price: true, costPrice: true },
+        });
+        updatedCount += 1;
+        importedProducts.push({
+          id: updated.id,
+          name: updated.name,
+          price: Number(updated.price),
+          costPrice: Number(updated.costPrice ?? item.costPrice),
+          section: item.sectionName,
+          featured,
+        });
+        continue;
+      }
+
+      const baseSlug = slugify(item.name) || `produto-shopee-${Date.now()}`;
+      let finalSlug = baseSlug;
+      for (let suffix = 1; suffix < 999; suffix += 1) {
+        const existingSlug = await prisma.product.findUnique({ where: { slug: finalSlug }, select: { id: true } });
+        if (!existingSlug) break;
+        finalSlug = `${baseSlug}-${suffix}`;
+      }
+
+      if (!finalSlug) {
+        skippedCount += 1;
+        continue;
+      }
+
+      try {
+        const created = await prisma.product.create({
+          data: {
+            name: item.name,
+            slug: finalSlug,
+            description: item.description ?? undefined,
+            costPrice: item.costPrice,
+            price: item.price,
+            images: item.images,
+            stock: item.stock,
+            categoryId,
+            sourceUrl: item.url,
+            featured,
+            published: true,
+            ...(sku && { sku }),
+          },
+          select: { id: true, name: true, price: true, costPrice: true },
+        });
+        createdCount += 1;
+        importedProducts.push({
+          id: created.id,
+          name: created.name,
+          price: Number(created.price),
+          costPrice: Number(created.costPrice ?? item.costPrice),
+          section: item.sectionName,
+          featured,
+        });
+      } catch {
+        skippedCount += 1;
+      }
+    }
+
+    await cacheDel('products:featured');
+    res.json({
+      message: 'Importação da Shopee finalizada',
+      sourceUrl,
+      totalUrlsLidas: candidateUrls.length > 0 ? candidateUrls.length : importedRaw.length,
+      totalImportados: importedProducts.length,
+      createdCount,
+      updatedCount,
+      skippedCount,
+      markupPercent: 15,
+      featuredCount,
+      products: importedProducts,
     });
   } catch (e) {
     next(e);

@@ -76,6 +76,7 @@ export function AdminProducts() {
   const [products, setProducts] = useState<AdminProduct[]>([]);
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [importingShopeeBatch, setImportingShopeeBatch] = useState(false);
   const navigate = useNavigate();
 
   const load = () => {
@@ -107,17 +108,111 @@ export function AdminProducts() {
       .finally(() => setDeletingId(null));
   };
 
+  const importShopeeBatch = async () => {
+    const baseUrl = window.prompt('URL da Shopee para varrer (padrão: home).', 'https://shopee.com.br/');
+    if (baseUrl == null) return;
+    const limitRaw = window.prompt('Quantidade máxima de produtos para importar', '24');
+    if (limitRaw == null) return;
+    const featuredRaw = window.prompt('Quantos produtos devem ficar em destaque na home?', '8');
+    if (featuredRaw == null) return;
+    const sectionUrlsRaw = window.prompt(
+      'Links de seções da Shopee (opcional, 1 por linha). Ajuda quando a home não expõe links.',
+      ''
+    );
+    const productUrlsRaw = window.prompt(
+      'Links diretos de produtos (opcional, 1 por linha).',
+      ''
+    );
+    const productsJsonRaw = window.prompt(
+      'JSON de produtos já extraídos (opcional). Formato: [{\"name\":\"...\",\"price\":123.45,\"image\":\"...\",\"sourceUrl\":\"...\"}]',
+      ''
+    );
+
+    const limit = Math.max(1, Math.min(80, Number(limitRaw) || 24));
+    const featuredCount = Math.max(0, Math.min(20, Number(featuredRaw) || 8));
+    const sectionUrls = (sectionUrlsRaw ?? '')
+      .split('\n')
+      .map((s) => s.trim())
+      .filter(Boolean);
+    const productUrls = (productUrlsRaw ?? '')
+      .split('\n')
+      .map((s) => s.trim())
+      .filter(Boolean);
+    let manualProducts: Array<{
+      name: string;
+      description?: string;
+      price: number;
+      image?: string;
+      sourceUrl?: string;
+    }> = [];
+    if (productsJsonRaw && productsJsonRaw.trim()) {
+      try {
+        const parsed = JSON.parse(productsJsonRaw.trim());
+        if (Array.isArray(parsed)) {
+          manualProducts = parsed
+            .filter((p) => p && typeof p.name === 'string' && Number(p.price) > 0)
+            .map((p) => ({
+              name: String(p.name),
+              ...(p.description ? { description: String(p.description) } : {}),
+              price: Number(p.price),
+              ...(p.image ? { image: String(p.image) } : {}),
+              ...(p.sourceUrl ? { sourceUrl: String(p.sourceUrl) } : {}),
+            }));
+        }
+      } catch {
+        toast.error('JSON de produtos inválido');
+        setImportingShopeeBatch(false);
+        return;
+      }
+    }
+
+    setImportingShopeeBatch(true);
+    try {
+      const { data } = await api.post<{
+        totalImportados: number;
+        createdCount: number;
+        updatedCount: number;
+        skippedCount: number;
+      }>('/admin/products/import-shopee-home', {
+        url: baseUrl.trim() || 'https://shopee.com.br/',
+        limit,
+        featuredCount,
+        ...(sectionUrls.length > 0 && { sectionUrls }),
+        ...(productUrls.length > 0 && { productUrls }),
+        ...(manualProducts.length > 0 && { products: manualProducts }),
+      });
+      toast.success(
+        `Shopee: ${data.totalImportados} importados (${data.createdCount} novos, ${data.updatedCount} atualizados, ${data.skippedCount} ignorados)`
+      );
+      load();
+    } catch (e) {
+      toast.error((e as Error).message || 'Falha ao importar lote da Shopee');
+    } finally {
+      setImportingShopeeBatch(false);
+    }
+  };
+
   return (
     <div>
       <div className="mb-4 flex items-center justify-between gap-4">
         <h2 className="text-xl font-semibold text-gray-900">Produtos</h2>
-        <button
-          type="button"
-          onClick={() => navigate('/admin/products/new')}
-          className="btn-primary"
-        >
-          Novo produto
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={importShopeeBatch}
+            disabled={importingShopeeBatch}
+            className="rounded-lg border border-primary-500 bg-white px-3 py-2 text-sm font-medium text-primary-600 hover:bg-primary-50 disabled:opacity-60"
+          >
+            {importingShopeeBatch ? 'Importando Shopee...' : 'Importar vitrine Shopee'}
+          </button>
+          <button
+            type="button"
+            onClick={() => navigate('/admin/products/new')}
+            className="btn-primary"
+          >
+            Novo produto
+          </button>
+        </div>
       </div>
 
       {loading ? (
@@ -304,6 +399,7 @@ export function AdminProductForm() {
     try {
       const { data } = await api.post<{
         name?: string;
+        description?: string;
         price?: number;
         image?: string;
         images?: string[];
@@ -316,6 +412,7 @@ export function AdminProductForm() {
       setValues((prev) => ({
         ...prev,
         ...(data.name && { name: data.name }),
+        ...(data.description && { description: data.description }),
         ...(data.price != null && {
           costPrice: String(data.price),
           price: String(Math.round(data.price * 1.15 * 100) / 100),

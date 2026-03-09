@@ -14,7 +14,8 @@
     "db:seed": "tsx prisma/seed.ts",
     "db:studio": "prisma studio",
     "test": "jest --runInBand",
-    "smoke:prod": "bash scripts/smoke-prod.sh"
+    "smoke:prod": "bash scripts/smoke-prod.sh",
+    "shopee:sync": "node scripts/sync-shopee-home.mjs"
   },
   "dependencies": {
     "dotenv": "^16.4.5",
@@ -58,6 +59,7 @@
     "supertest": "^7.0.0",
     "ts-jest": "^29.2.5",
     "tsx": "^4.19.2",
-    "typescript": "^5.6.3"
+    "typescript": "^5.6.3",
+    "playwright": "^1.58.2"
   }
 }
