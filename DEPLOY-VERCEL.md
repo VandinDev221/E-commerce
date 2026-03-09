@@ -111,6 +111,30 @@ No PowerShell: `$env:DATABASE_URL="postgresql://..."; npx prisma migrate deploy;
 - **Redis:** opcional; sem `REDIS_URL` o backend não usa cache e continua funcionando.
 - **CORS:** `FRONTEND_URL` deve ser exatamente a URL do frontend na Vercel (com `https://`) para login e cookies funcionarem corretamente.
 
+## Redeploy não dispara / não funciona
+
+Se o deploy não roda sozinho após `git push` ou o redeploy falha:
+
+1. **Branch de produção**
+   - Vercel → projeto → **Settings** → **Git**.
+   - Em **Production Branch** confira se está `main` (e não `master`). Se você usa `main`, deve estar `main`.
+
+2. **Deploy automático**
+   - Em **Settings** → **Git**, verifique se **Automatically deploy** está ativado para a branch de produção.
+
+3. **Redeploy manual**
+   - Aba **Deployments** → no último deploy, menu **⋯** → **Redeploy**.
+   - Marque **Use existing Build Cache** só se quiser repetir o mesmo build; para garantir build novo, desmarque.
+
+4. **Build falhando**
+   - Se o deploy “rodar” mas ficar **Failed**, abra o deploy e veja o **Build Log**.
+   - Erro comum: variáveis de ambiente faltando (`DATABASE_URL`, `JWT_SECRET`, etc.) ou `npm run build` falhando (teste local com `npm run install:all` e `npm run build` na raiz).
+
+5. **Ignored Build Step**
+   - Em **Settings** → **Git** → **Ignored Build Step**: se houver comando, ele pode estar cancelando o build (ex.: retornando “no build”). Para sempre fazer build, deixe em branco ou use algo como `exit 0`.
+
+Depois de alterar a branch ou as opções, faça um **Redeploy** manual ou um novo `git push` para testar.
+
 ## Deploy só do frontend na Vercel
 
 Se preferir hospedar a API em outro lugar (Railway, Render, etc.):
