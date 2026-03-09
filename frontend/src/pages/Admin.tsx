@@ -405,6 +405,7 @@ export function AdminProductForm() {
         images?: string[];
         stock?: number;
         sourceUrl?: string;
+        warning?: string | null;
       }>('/admin/products/import-shopee', { url: url.trim() });
       const imageList = Array.isArray(data.images) && data.images.length > 0
         ? data.images.join('\n')
@@ -412,16 +413,20 @@ export function AdminProductForm() {
       setValues((prev) => ({
         ...prev,
         ...(data.name && { name: data.name }),
-        ...(data.description && { description: data.description }),
+        ...(data.description != null && { description: data.description || '' }),
         ...(data.price != null && {
           costPrice: String(data.price),
           price: String(Math.round(data.price * 1.15 * 100) / 100),
         }),
-        ...(imageList && { images: imageList }),
+        images: imageList || '',
         ...(data.stock != null && data.stock >= 0 && { stock: String(data.stock) }),
         ...(data.sourceUrl && { sourceUrl: data.sourceUrl }),
       }));
-      toast.success(data.name ? 'Dados da Shopee preenchidos (revise e salve)' : 'Abra o link e preencha manualmente se necessário');
+      if (data.warning) {
+        toast.error(data.warning);
+      } else {
+        toast.success(data.name ? 'Dados da Shopee preenchidos (revise e salve)' : 'Abra o link e preencha manualmente se necessário');
+      }
     } catch (e) {
       toast.error((e as Error).message || 'Não foi possível importar. Cole o link e preencha manualmente.');
     } finally {
