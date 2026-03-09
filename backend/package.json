@@ -15,7 +15,8 @@
     "db:studio": "prisma studio",
     "test": "jest --runInBand",
     "smoke:prod": "bash scripts/smoke-prod.sh",
-    "shopee:sync": "node scripts/sync-shopee-home.mjs"
+    "shopee:sync": "node scripts/sync-shopee-home.mjs",
+    "shopee:full-sync": "bash scripts/full-sync-shopee.sh"
   },
   "dependencies": {
     "dotenv": "^16.4.5",

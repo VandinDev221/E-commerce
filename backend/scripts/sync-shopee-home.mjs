@@ -18,6 +18,10 @@ const HEADLESS = String(process.env.SHOPEE_HEADLESS || 'false').toLowerCase() ==
 const PROFILE_DIR = process.env.SHOPEE_PROFILE_DIR || '.shopee-profile';
 const SCROLL_ROUNDS = Math.max(4, Math.min(30, Number(process.env.SHOPEE_SCROLL_ROUNDS || 12)));
 const SCROLL_STEP = Math.max(600, Math.min(2200, Number(process.env.SHOPEE_SCROLL_STEP || 1500)));
+const OUTPUT_FILE = process.env.SHOPEE_OUTPUT_FILE || '';
+const DRY_RUN = String(process.env.SHOPEE_DRY_RUN || 'false').toLowerCase() === 'true';
+const SHOPEE_LOGIN_EMAIL = process.env.SHOPEE_LOGIN_EMAIL || '';
+const SHOPEE_LOGIN_PASSWORD = process.env.SHOPEE_LOGIN_PASSWORD || '';
 
 function normalizePrice(text) {
   const priceMatch = text.match(/R\$\s*([\d.,]+)/i);
@@ -41,11 +45,63 @@ function normalizeHref(href, base = 'https://shopee.com.br') {
 }
 
 async function waitForLoginIfNeeded(page) {
+  const isBlockedPage = async () => {
+    try {
+      return await page.evaluate(() => {
+        const text = (document.body?.innerText || '').toLowerCase();
+        const hasPasswordInput = !!document.querySelector('input[type="password"]');
+        const unavailable = text.includes('página indisponível') || text.includes('pagina indisponivel');
+        return hasPasswordInput || unavailable;
+      });
+    } catch {
+      return false;
+    }
+  };
+
   const checkNeedsLogin = () => {
     const url = page.url().toLowerCase();
     return url.includes('/buyer/login') || url.includes('/verify');
   };
-  if (!checkNeedsLogin()) return;
+  const needsLogin = checkNeedsLogin() || (await isBlockedPage());
+  if (!needsLogin) return;
+  if (SHOPEE_LOGIN_EMAIL && SHOPEE_LOGIN_PASSWORD) {
+    try {
+      if (!checkNeedsLogin()) {
+        const target = page.url();
+        const loginUrl = `https://shopee.com.br/buyer/login?next=${encodeURIComponent(target || 'https://shopee.com.br/')}`;
+        await page.goto(loginUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
+      }
+      console.log('[shopee-sync] tentando login automático na Shopee...');
+      const loginInput = page
+        .locator('input[name="loginKey"], input[autocomplete="username"], input[type="text"], input[type="email"]')
+        .first();
+      await loginInput.waitFor({ timeout: 12000 });
+      await loginInput.fill(SHOPEE_LOGIN_EMAIL);
+      const passwordInput = page
+        .locator('input[name="password"], input[type="password"]')
+        .first();
+      await passwordInput.waitFor({ timeout: 12000 });
+      await passwordInput.fill(SHOPEE_LOGIN_PASSWORD);
+
+      const submitButton = page
+        .getByRole('button', { name: /entrar|login|log in/i })
+        .first();
+      if (await submitButton.isVisible().catch(() => false)) {
+        await submitButton.click();
+      } else {
+        await passwordInput.press('Enter');
+      }
+
+      await page.waitForTimeout(6000);
+      if (!(checkNeedsLogin() || (await isBlockedPage()))) {
+        console.log('[shopee-sync] login automático concluído.');
+        return;
+      }
+      console.log('[shopee-sync] login automático não concluiu (possível captcha/2FA).');
+    } catch {
+      console.log('[shopee-sync] falha na tentativa de login automático.');
+    }
+  }
   if (HEADLESS) {
     throw new Error('Shopee pediu login e o script está em headless. Rode com SHOPEE_HEADLESS=false para autenticar.');
   }
@@ -78,9 +134,24 @@ function sanitizeInputProducts(raw) {
     .filter(Boolean);
 }
 
+function dedupeProducts(rawProducts) {
+  const seen = new Set();
+  const list = [];
+  for (const p of rawProducts) {
+    if (!p?.name || !p?.price) continue;
+    const key = p.sourceUrl ? `url:${p.sourceUrl}` : `name:${p.name.toLowerCase()}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    list.push(p);
+  }
+  return list;
+}
+
 async function collectProductsFromPage(page, maxProducts) {
   await waitForLoginIfNeeded(page);
-  await page.waitForTimeout(2000);
+  await page.waitForTimeout(1200);
+  await waitForLoginIfNeeded(page);
+  await page.waitForTimeout(1800);
 
   let previousCount = 0;
   let stagnant = 0;
@@ -97,7 +168,8 @@ async function collectProductsFromPage(page, maxProducts) {
     if (stagnant >= 4 || count >= maxProducts * 2) break;
   }
 
-  const scraped = await page.evaluate((cap) => {
+  const scrapeNow = async () =>
+    page.evaluate((cap) => {
     const nodes = Array.from(document.querySelectorAll('a[href*="-i."], a[href*="/product/"]'));
     const items = [];
     const seen = new Set();
@@ -126,8 +198,15 @@ async function collectProductsFromPage(page, maxProducts) {
         priceText,
       });
     }
-    return items;
-  }, maxProducts);
+      return items;
+    }, maxProducts);
+
+  let scraped = await scrapeNow();
+  if (scraped.length === 0) {
+    await waitForLoginIfNeeded(page);
+    await page.waitForTimeout(2200);
+    scraped = await scrapeNow();
+  }
 
   return scraped
     .map((item) => {
@@ -202,7 +281,7 @@ async function run() {
   if (INPUT_FILE) {
     const fileRaw = fs.readFileSync(INPUT_FILE, 'utf8');
     const parsed = JSON.parse(fileRaw);
-    products = sanitizeInputProducts(parsed).slice(0, LIMIT);
+    products = dedupeProducts(sanitizeInputProducts(parsed)).slice(0, LIMIT);
     if (products.length === 0) {
       throw new Error('Arquivo de entrada não contém produtos válidos. Use um JSON array com name e price.');
     }
@@ -230,7 +309,7 @@ async function run() {
         }
         if (seen.size >= LIMIT) break;
       }
-      products = Array.from(seen.values()).slice(0, LIMIT);
+      products = dedupeProducts(Array.from(seen.values())).slice(0, LIMIT);
       if (products.length === 0) {
         throw new Error(
           'Não foi possível extrair produtos automaticamente. Faça login na Shopee e tente novamente, ou use SHOPEE_INPUT_FILE.'
@@ -240,6 +319,16 @@ async function run() {
     } finally {
       await context.close();
     }
+  }
+
+  if (OUTPUT_FILE) {
+    fs.writeFileSync(OUTPUT_FILE, JSON.stringify(products, null, 2), 'utf8');
+    console.log(`[shopee-sync] arquivo exportado: ${OUTPUT_FILE}`);
+  }
+
+  if (DRY_RUN) {
+    console.log(`[shopee-sync] DRY RUN: ${products.length} produtos extraídos (sem importar).`);
+    return;
   }
 
   const token = await loginAdmin();
