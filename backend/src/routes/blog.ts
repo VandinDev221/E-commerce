@@ -1,13 +1,12 @@
 import { Router } from 'express';
 import { prisma } from '../lib/prisma.js';
 import { cacheGet, cacheSet } from '../lib/redis.js';
-import { getDefaultImageUrl } from '../lib/images.js';
 import { AppError } from '../middleware/errorHandler.js';
 
 const router = Router();
 
-function withDefaultCover<T extends { coverImage: string | null; title: string }>(p: T): T & { coverImage: string } {
-  return { ...p, coverImage: p.coverImage ?? getDefaultImageUrl(p.title) };
+function withDefaultCover<T extends { coverImage: string | null }>(p: T): T {
+  return p;
 }
 
 router.get('/', async (req, res, next) => {

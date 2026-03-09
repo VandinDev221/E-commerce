@@ -8,7 +8,7 @@ import { authMiddleware, requireAdmin, AuthRequest } from '../middleware/auth.js
 import { AppError } from '../middleware/errorHandler.js';
 import { uploadImage } from '../services/upload.js';
 import { cacheDel } from '../lib/redis.js';
-import { getDefaultImageUrl, normalizeProductImages } from '../lib/images.js';
+import { normalizeProductImages } from '../lib/images.js';
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
@@ -150,10 +150,10 @@ function extractValidShopeeImages(images: Array<string | null | undefined> | nul
   ).slice(0, 8);
 }
 
-function normalizeShopeeImages(images: Array<string | null | undefined> | null | undefined, productName: string) {
+function normalizeShopeeImages(images: Array<string | null | undefined> | null | undefined) {
   const normalized = extractValidShopeeImages(images);
   if (normalized.length > 0) return Array.from(new Set(normalized)).slice(0, 8);
-  return [getDefaultImageUrl(productName)];
+  return [];
 }
 
 function fallbackProductNameFromUrl(sourceUrl: string) {
@@ -198,7 +198,7 @@ function isLikelyShopeeProductContent(name?: string | null, description?: string
 }
 
 function isPlaceholderImage(url: string) {
-  return url.includes('placehold.co');
+  return url.includes('placehold.co') || url.includes('dummyimage.com') || url.includes('picsum.photos');
 }
 
 function extractShopeeProductUrls(html: string) {
@@ -301,7 +301,7 @@ router.get('/products', async (_req, res, next) => {
     });
     res.json(products.map((p) => ({
       ...p,
-      images: normalizeProductImages(p.images, p.name),
+      images: normalizeProductImages(p.images),
       price: Number(p.price),
       costPrice: p.costPrice != null ? Number(p.costPrice) : null,
       compareAtPrice: p.compareAtPrice ? Number(p.compareAtPrice) : null,
@@ -333,7 +333,7 @@ router.post('/products', upload.array('images', 10), async (req: AuthRequest, re
         images.push(url);
       }
     }
-    if (images.length === 0) images = [getDefaultImageUrl(body.name)];
+    images = normalizeProductImages(images);
 
     const product = await prisma.product.create({
       data: {
@@ -387,7 +387,7 @@ router.get('/products/:id', async (req, res, next) => {
       sku: product.sku ?? null,
       categoryId: product.categoryId ?? null,
       category,
-      images: images.length ? images : [getDefaultImageUrl(product.name)],
+      images: normalizeProductImages(images),
       featured: Boolean(product.featured),
       published: Boolean(product.published),
       createdAt,
@@ -585,7 +585,7 @@ router.post('/products/import-shopee-home', async (req, res, next) => {
         if (!source || !isShopeeProductUrl(source)) continue;
         let parsedName = p.name.trim();
         let parsedDescription = p.description?.trim() || null;
-        let parsedImages = normalizeShopeeImages([...(p.images ?? []), p.image], parsedName);
+        let parsedImages = normalizeShopeeImages([...(p.images ?? []), p.image]);
         let parsedStock = 100;
 
         if (source && (source.includes('/product/') || source.includes('-i.'))) {
@@ -609,7 +609,7 @@ router.post('/products/import-shopee-home', async (req, res, next) => {
         }
 
         if (!parsedDescription || parsedDescription.trim().length < 24) {
-          parsedDescription = 'Produto importado da Shopee. Confira detalhes completos na página de origem.';
+          parsedDescription = 'Descrição indisponível';
         }
 
         const section = inferShopeeSection(parsedName, parsedDescription);
@@ -679,7 +679,7 @@ router.post('/products/import-shopee-home', async (req, res, next) => {
             description: parsed.description,
             costPrice,
             price,
-            images: normalizeShopeeImages(parsed.images, parsed.name),
+            images: normalizeShopeeImages(parsed.images),
             stock: Math.max(100, parsed.stock ?? 0),
             sectionSlug: section.slug,
             sectionName: section.name,
@@ -722,6 +722,23 @@ router.post('/products/import-shopee-home', async (req, res, next) => {
     }
     importedRaw = dedupedRaw;
 
+    // Se um lote vier "viciado" com a mesma imagem em quase todos os itens, remove a imagem dominante.
+    if (importedRaw.length >= 10) {
+      const imageFrequency = new Map<string, number>();
+      for (const item of importedRaw) {
+        const primary = item.images.find((img) => !isPlaceholderImage(img)) ?? item.images[0] ?? '';
+        if (!primary) continue;
+        imageFrequency.set(primary, (imageFrequency.get(primary) ?? 0) + 1);
+      }
+      const dominant = Array.from(imageFrequency.entries()).sort((a, b) => b[1] - a[1])[0];
+      if (dominant && dominant[1] / importedRaw.length >= 0.6) {
+        importedRaw = importedRaw.map((item) => {
+          const primary = item.images.find((img) => !isPlaceholderImage(img)) ?? item.images[0] ?? '';
+          if (primary === dominant[0]) return { ...item, images: [] };
+          return item;
+        });
+      }
+    }
     const existingCategories = await prisma.category.findMany({
       where: { slug: { in: Array.from(sectionsNeeded) } },
       select: { id: true, slug: true },
@@ -749,6 +766,10 @@ router.post('/products/import-shopee-home', async (req, res, next) => {
 
     for (let i = 0; i < importedRaw.length; i += 1) {
       const item = importedRaw[i];
+      if (!item.images || item.images.length === 0) {
+        skippedCount += 1;
+        continue;
+      }
       const categoryId = categoryBySlug.get(item.sectionSlug) ?? null;
       const featured = i < featuredCount;
       const itemIdMatch = item.url.match(/-i\.(\d+)\.(\d+)/) ?? item.url.match(/\/product\/(\d+)\/(\d+)/);

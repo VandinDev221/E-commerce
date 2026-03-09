@@ -6,7 +6,6 @@ import { z } from 'zod';
 import { FiStar, FiChevronLeft, FiChevronRight } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 import { api } from '../api/client';
-import { getDefaultImageUrl } from '../constants';
 import { useDispatch, useSelector } from 'react-redux';
 import { addToCart } from '../store/cartSlice';
 import type { RootState } from '../store';
@@ -118,21 +117,25 @@ export default function ProductDetail() {
     );
   }
 
-  const images = product.images?.length
-    ? product.images
-    : [getDefaultImageUrl()];
-  const currentImage = images[imageIndex % images.length] ?? images[0];
+  const images = product.images?.length ? product.images : [];
+  const currentImage = images.length ? images[imageIndex % images.length] ?? images[0] : '';
   const hasMultiple = images.length > 1;
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
       <div className="grid gap-8 lg:grid-cols-2">
         <div className="relative aspect-square overflow-hidden rounded-xl bg-gray-100">
-          <img
-            src={currentImage}
-            alt={`${product.name} - imagem ${imageIndex + 1}`}
-            className="h-full w-full object-cover"
-          />
+          {currentImage ? (
+            <img
+              src={currentImage}
+              alt={`${product.name} - imagem ${imageIndex + 1}`}
+              className="h-full w-full object-cover"
+            />
+          ) : (
+            <div className="flex h-full w-full items-center justify-center text-sm text-gray-500">
+              Sem imagem real deste produto
+            </div>
+          )}
           {hasMultiple && (
             <>
               <button
@@ -293,13 +296,19 @@ export default function ProductDetail() {
                 className="card block overflow-hidden"
               >
                 <div className="h-52 w-full overflow-hidden bg-gray-100">
-                  <img
-                    src={p.images?.[0] || getDefaultImageUrl(p.name)}
-                    alt={p.name}
-                    loading="lazy"
-                    decoding="async"
-                    className="h-full w-full object-cover"
-                  />
+                  {p.images?.[0] ? (
+                    <img
+                      src={p.images[0]}
+                      alt={p.name}
+                      loading="lazy"
+                      decoding="async"
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center text-xs text-gray-500">
+                      Sem imagem real
+                    </div>
+                  )}
                 </div>
                 <div className="p-3">
                   <p className="font-medium text-gray-900 line-clamp-2">{p.name}</p>

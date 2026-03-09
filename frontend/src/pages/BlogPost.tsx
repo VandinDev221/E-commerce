@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { api } from '../api/client';
-import { getDefaultImageUrl } from '../constants';
 
 interface Post {
   id: string;
@@ -30,7 +29,7 @@ export default function BlogPost() {
   if (loading) return <div className="mx-auto max-w-3xl px-4 py-16 text-center">Carregando...</div>;
   if (!post) return <div className="mx-auto max-w-3xl px-4 py-16 text-center text-gray-500">Post não encontrado.</div>;
 
-  const coverSrc = post.coverImage || getDefaultImageUrl(post.title);
+  const coverSrc = post.coverImage || '';
 
   return (
     <article className="mx-auto max-w-3xl px-4 py-8 sm:px-6">
@@ -49,7 +48,13 @@ export default function BlogPost() {
         {post.excerpt && <p className="mt-2 text-lg text-gray-600">{post.excerpt}</p>}
       </header>
       <div className="mt-6 aspect-video w-full overflow-hidden rounded-xl bg-gray-100">
-        <img src={coverSrc} alt="" className="h-full w-full object-cover" />
+        {coverSrc ? (
+          <img src={coverSrc} alt="" className="h-full w-full object-cover" />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center text-sm text-gray-500">
+            Sem imagem real
+          </div>
+        )}
       </div>
       <div
         className="prose prose-lg mt-8 max-w-none prose-headings:font-semibold prose-p:text-gray-700 prose-a:text-primary-600"

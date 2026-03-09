@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { api } from '../api/client';
-import { getDefaultImageUrl } from '../constants';
 
 interface Post {
   id: string;
@@ -62,13 +61,19 @@ export default function Blog() {
               <li key={post.id} className="card overflow-hidden">
                 <Link to={`/blog/${post.slug}`} className="block hover:opacity-95">
                   <div className="aspect-[16/10] w-full overflow-hidden bg-gray-100">
-                    <img
-                      src={post.coverImage || getDefaultImageUrl(post.title)}
-                      alt=""
-                      loading="lazy"
-                      decoding="async"
-                      className="h-full w-full object-cover"
-                    />
+                    {post.coverImage ? (
+                      <img
+                        src={post.coverImage}
+                        alt=""
+                        loading="lazy"
+                        decoding="async"
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center text-xs text-gray-500">
+                        Sem imagem real
+                      </div>
+                    )}
                   </div>
                   <div className="p-4">
                     <time className="text-sm text-gray-500">
