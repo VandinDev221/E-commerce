@@ -145,6 +145,7 @@ Para importar **todos os produtos encontrados** na Shopee com margem automática
 Formato do JSON:
 - `[{"name":"Produto","price":99.9,"image":"https://...","sourceUrl":"https://shopee.com.br/..."}]`
 - template pronto: `backend/tmp/shopee_products_template.json`
+- `sourceUrl` deve ser link real de produto Shopee (ex: `...-i.<shopid>.<itemid>` ou `/product/<shopid>/<itemid>`), não use `/import/...`.
 
 Observações:
 - O script envia em lotes para `/api/admin/products/import-shopee-home`.

@@ -93,6 +93,18 @@ function normalizeShopeeProductUrl(rawUrl: string) {
   }
 }
 
+function isShopeeProductUrl(u: string) {
+  try {
+    const parsed = new URL(u);
+    if (!isShopeeDomain(parsed.toString())) return false;
+    const path = parsed.pathname;
+    if (path.includes('/import/')) return false;
+    return /\/product\/\d+\/\d+/.test(path) || /-i\.\d+\.\d+/.test(path);
+  } catch {
+    return false;
+  }
+}
+
 function normalizeShopeeImageUrl(raw?: string | null) {
   if (!raw) return null;
   const clean = raw
@@ -210,7 +222,9 @@ function loadShopeeFallbackProducts(limit: number): ShopeeImportInputProduct[] {
     const raw = JSON.parse(fs.readFileSync(fileUrl, 'utf8'));
     const parsed = z.array(shopeeImportProductSchema).safeParse(raw);
     if (!parsed.success) return [];
-    return parsed.data.slice(0, limit);
+    return parsed.data
+      .filter((p) => p.sourceUrl && isShopeeProductUrl(normalizeShopeeProductUrl(p.sourceUrl) ?? ''))
+      .slice(0, limit);
   } catch {
     return [];
   }
@@ -487,9 +501,8 @@ router.post('/products/import-shopee-home', async (req, res, next) => {
     const addManualProducts = async (manualProducts: ShopeeImportInputProduct[]) => {
       for (let idx = 0; idx < manualProducts.length; idx += 1) {
         const p = manualProducts[idx];
-        const fallbackSource = `https://shopee.com.br/import/${slugify(p.name) || `item-${idx + 1}`}-${idx + 1}`;
-        const source = p.sourceUrl ? normalizeShopeeProductUrl(p.sourceUrl) : fallbackSource;
-        if (p.sourceUrl && !source) continue;
+        const source = p.sourceUrl ? normalizeShopeeProductUrl(p.sourceUrl) : null;
+        if (!source || !isShopeeProductUrl(source)) continue;
         let parsedName = p.name.trim();
         let parsedDescription = p.description?.trim() || null;
         let parsedImages = normalizeShopeeImages([...(p.images ?? []), p.image], parsedName);
@@ -520,7 +533,7 @@ router.post('/products/import-shopee-home', async (req, res, next) => {
         const price = Math.round(costPrice * 1.15 * 100) / 100;
         sectionsNeeded.add(section.slug);
         importedRaw.push({
-          url: source ?? fallbackSource,
+          url: source,
           name: parsedName,
           description: parsedDescription,
           costPrice,
@@ -560,7 +573,7 @@ router.post('/products/import-shopee-home', async (req, res, next) => {
           await addManualProducts(fallbackProducts);
         } else {
           throw new AppError(
-            'Não foi possível extrair links da Shopee. Informe links em "productUrls" ou dados em "products".',
+            'Não foi possível extrair links válidos da Shopee. Informe links reais de produto em "productUrls" ou dados em "products".',
             400
           );
         }
