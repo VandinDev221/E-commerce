@@ -53,6 +53,7 @@ export default function ProductDetail() {
   const [loading, setLoading] = useState(true);
   const [quantity, setQuantity] = useState(1);
   const [imageIndex, setImageIndex] = useState(0);
+  const [showFullDescription, setShowFullDescription] = useState(false);
   const { user } = useSelector((s: RootState) => s.auth);
   const dispatch = useDispatch();
 
@@ -77,6 +78,7 @@ export default function ProductDetail() {
 
   useEffect(() => {
     setImageIndex(0);
+    setShowFullDescription(false);
   }, [product?.id]);
 
   const add = () => {
@@ -120,112 +122,148 @@ export default function ProductDetail() {
   const images = product.images?.length ? product.images : [];
   const currentImage = images.length ? images[imageIndex % images.length] ?? images[0] : '';
   const hasMultiple = images.length > 1;
+  const productDescription = product.description?.trim() || 'Descrição indisponível para este produto.';
+  const hasLongDescription = productDescription.length > 180;
+  const installmentPrice = product.price / 10;
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
-      <div className="grid gap-8 lg:grid-cols-2">
-        <div className="relative aspect-square overflow-hidden rounded-xl bg-gray-100">
-          {currentImage ? (
-            <img
-              src={currentImage}
-              alt={`${product.name} - imagem ${imageIndex + 1}`}
-              className="h-full w-full object-cover"
-            />
-          ) : (
-            <div className="flex h-full w-full items-center justify-center text-sm text-gray-500">
-              Sem imagem real deste produto
-            </div>
-          )}
-          {hasMultiple && (
-            <>
-              <button
-                type="button"
-                onClick={() => setImageIndex((i) => (i === 0 ? images.length - 1 : i - 1))}
-                className="absolute left-2 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 text-gray-800 shadow-md transition hover:bg-white"
-                aria-label="Imagem anterior"
-              >
-                <FiChevronLeft className="h-6 w-6" />
-              </button>
-              <button
-                type="button"
-                onClick={() => setImageIndex((i) => (i === images.length - 1 ? 0 : i + 1))}
-                className="absolute right-2 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 text-gray-800 shadow-md transition hover:bg-white"
-                aria-label="Próxima imagem"
-              >
-                <FiChevronRight className="h-6 w-6" />
-              </button>
-              <div className="absolute bottom-3 left-0 right-0 flex justify-center gap-1.5">
-                {images.map((_, i) => (
+    <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
+      <div className="mb-3 text-xs text-gray-500">
+        página inicial &gt; produtos &gt; {product.name.toLowerCase()}
+      </div>
+      <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-6">
+        <div className="grid gap-6 lg:grid-cols-[1.1fr_1fr_340px]">
+          <div>
+            <div className="relative aspect-square overflow-hidden rounded-xl border border-gray-200 bg-gray-50">
+              {currentImage ? (
+                <img
+                  src={currentImage}
+                  alt={`${product.name} - imagem ${imageIndex + 1}`}
+                  className="h-full w-full object-contain"
+                />
+              ) : (
+                <div className="flex h-full w-full items-center justify-center text-sm text-gray-500">
+                  Sem imagem real deste produto
+                </div>
+              )}
+              {hasMultiple && (
+                <>
                   <button
-                    key={i}
+                    type="button"
+                    onClick={() => setImageIndex((i) => (i === 0 ? images.length - 1 : i - 1))}
+                    className="absolute left-2 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-white text-gray-700 shadow transition hover:bg-gray-100"
+                    aria-label="Imagem anterior"
+                  >
+                    <FiChevronLeft className="h-5 w-5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setImageIndex((i) => (i === images.length - 1 ? 0 : i + 1))}
+                    className="absolute right-2 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-white text-gray-700 shadow transition hover:bg-gray-100"
+                    aria-label="Próxima imagem"
+                  >
+                    <FiChevronRight className="h-5 w-5" />
+                  </button>
+                </>
+              )}
+            </div>
+            {images.length > 0 && (
+              <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
+                {images.map((img, i) => (
+                  <button
+                    key={`${img}-${i}`}
                     type="button"
                     onClick={() => setImageIndex(i)}
-                    className={`h-2 w-2 rounded-full transition ${
-                      i === imageIndex ? 'bg-white ring-2 ring-gray-400' : 'bg-white/60 hover:bg-white/80'
+                    className={`h-16 w-16 shrink-0 overflow-hidden rounded-md border ${
+                      i === imageIndex ? 'border-red-500' : 'border-gray-200'
                     }`}
-                    aria-label={`Ir para imagem ${i + 1}`}
-                  />
+                  >
+                    <img src={img} alt="" className="h-full w-full object-cover" />
+                  </button>
                 ))}
               </div>
-            </>
-          )}
-        </div>
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">{product.name}</h1>
-          {product.avgRating != null && (
-            <div className="mt-2 flex items-center gap-2">
-              <div className="flex text-amber-500">
-                {[1, 2, 3, 4, 5].map((i) => (
-                  <FiStar
-                    key={i}
-                    className={`h-5 w-5 ${i <= product.avgRating! ? 'fill-current' : ''}`}
-                  />
-                ))}
-              </div>
-              <span className="text-sm text-gray-600">
-                {product.avgRating.toFixed(1)} ({product.reviewCount} avaliações)
-              </span>
-            </div>
-          )}
-          <div className="mt-4 flex items-baseline gap-2">
-            <span className="text-2xl font-bold text-primary-600">
-              R$ {product.price.toFixed(2).replace('.', ',')}
-            </span>
-            {product.compareAtPrice && product.compareAtPrice > product.price && (
-              <span className="text-lg text-gray-400 line-through">
-                R$ {product.compareAtPrice.toFixed(2).replace('.', ',')}
-              </span>
             )}
           </div>
-          <p className="mt-4 text-gray-600">{product.description}</p>
-          <p className="mt-2 text-sm text-gray-500">Estoque: {product.stock} unidades</p>
-          <div className="mt-6 flex flex-wrap items-center gap-4">
-            <div className="flex items-center rounded-lg border border-gray-300">
-              <button
-                type="button"
-                onClick={() => setQuantity((q) => Math.max(1, q - 1))}
-                className="px-3 py-2 text-gray-600 hover:bg-gray-50"
+
+          <div>
+            <h1 className="text-3xl font-bold leading-tight text-gray-900">{product.name}</h1>
+            {product.avgRating != null && (
+              <div className="mt-3 flex items-center gap-2">
+                <div className="flex text-amber-500">
+                  {[1, 2, 3, 4, 5].map((i) => (
+                    <FiStar
+                      key={i}
+                      className={`h-5 w-5 ${i <= product.avgRating! ? 'fill-current' : ''}`}
+                    />
+                  ))}
+                </div>
+                <span className="text-sm text-gray-600">
+                  {product.avgRating.toFixed(1)} ({product.reviewCount} avaliações)
+                </span>
+              </div>
+            )}
+            <div className="mt-5 space-y-2 text-sm text-gray-700">
+              <p
+                className={`whitespace-pre-line leading-6 ${
+                  showFullDescription ? '' : 'line-clamp-2'
+                }`}
               >
-                −
-              </button>
-              <span className="w-12 text-center">{quantity}</span>
-              <button
-                type="button"
-                onClick={() => setQuantity((q) => Math.min(product.stock, q + 1))}
-                className="px-3 py-2 text-gray-600 hover:bg-gray-50"
-              >
-                +
-              </button>
+                {productDescription}
+              </p>
+              {hasLongDescription && (
+                <button
+                  type="button"
+                  onClick={() => setShowFullDescription((v) => !v)}
+                  className="text-sm font-medium text-red-600 hover:underline"
+                >
+                  {showFullDescription ? 'Ver menos' : 'Ver mais'}
+                </button>
+              )}
+            </div>
+            <p className="mt-4 text-sm text-gray-500">Estoque: {product.stock} unidades</p>
+          </div>
+
+          <aside className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+            <p className="text-4xl font-bold text-red-600">R$ {product.price.toFixed(2).replace('.', ',')}</p>
+            {product.compareAtPrice && product.compareAtPrice > product.price && (
+              <p className="mt-1 text-sm text-gray-400 line-through">
+                R$ {product.compareAtPrice.toFixed(2).replace('.', ',')}
+              </p>
+            )}
+            <p className="mt-2 text-sm text-gray-600">
+              em até 10x de R$ {installmentPrice.toFixed(2).replace('.', ',')} sem juros
+            </p>
+            <div className="mt-5">
+              <p className="mb-2 text-sm font-medium text-gray-700">quantidade:</p>
+              <div className="flex items-center gap-2">
+                <div className="flex items-center rounded-lg border border-gray-300 bg-white">
+                  <button
+                    type="button"
+                    onClick={() => setQuantity((q) => Math.max(1, q - 1))}
+                    className="px-3 py-2 text-gray-700 hover:bg-gray-50"
+                  >
+                    −
+                  </button>
+                  <span className="w-10 text-center">{quantity}</span>
+                  <button
+                    type="button"
+                    onClick={() => setQuantity((q) => Math.min(product.stock, q + 1))}
+                    className="px-3 py-2 text-gray-700 hover:bg-gray-50"
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
             </div>
             <button
               type="button"
               onClick={add}
               disabled={product.stock < 1}
-              className="btn-primary flex-1 sm:flex-none"
+              className="mt-5 w-full rounded-lg bg-red-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              Adicionar ao carrinho
+              comprar
             </button>
-          </div>
+          </aside>
         </div>
       </div>
 
