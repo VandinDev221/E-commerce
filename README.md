@@ -130,6 +130,25 @@ Checklist mínimo para produção:
 
 ---
 
+## Importação Shopee em massa
+
+Para importar **todos os produtos encontrados** na Shopee com margem automática de +15%:
+
+1. Via navegador (com login Shopee no perfil salvo):
+   - `cd backend && npm run shopee:sync`
+2. Via arquivo JSON (quando a Shopee bloquear scraping direto):
+   - `cd backend && SHOPEE_INPUT_FILE=/caminho/produtos.json npm run shopee:sync`
+
+Formato do JSON:
+- `[{"name":"Produto","price":99.9,"image":"https://...","sourceUrl":"https://shopee.com.br/..."}]`
+
+Observações:
+- O script envia em lotes para `/api/admin/products/import-shopee-home`.
+- O backend aplica `price = costPrice * 1.15` automaticamente.
+- Produtos são categorizados automaticamente (eletrônicos, acessórios, casa e cozinha etc.).
+
+---
+
 ## Solução de problemas
 
 | Problema | Causa provável | Solução |
