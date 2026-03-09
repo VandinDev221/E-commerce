@@ -1,7 +1,6 @@
 import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
-import { getDefaultImageUrl } from '../constants';
 import { fetchCart, updateCartItem, removeFromCart } from '../store/cartSlice';
 import type { RootState } from '../store';
 import type { CartItem } from '../store/cartSlice';
@@ -49,12 +48,18 @@ export default function Cart() {
             key={item.id}
             className="card flex flex-col gap-4 p-4 sm:flex-row sm:items-center"
           >
-            <img
-              src={item.image || getDefaultImageUrl(item.name)}
-              alt={item.name}
-              loading="lazy"
-              className="h-24 w-24 rounded-lg object-cover"
-            />
+            {item.image ? (
+              <img
+                src={item.image}
+                alt={item.name}
+                loading="lazy"
+                className="h-24 w-24 rounded-lg object-cover"
+              />
+            ) : (
+              <div className="flex h-24 w-24 items-center justify-center rounded-lg bg-gray-100 text-xs text-gray-500">
+                Sem imagem real
+              </div>
+            )}
             <div className="flex-1">
               <Link to={`/products/${item.slug}`} className="font-medium text-gray-900 hover:underline">
                 {item.name}

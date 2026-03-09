@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma.js';
-import { getDefaultImageUrl } from '../lib/images.js';
+import { normalizeProductImages } from '../lib/images.js';
 import { authMiddleware, AuthRequest } from '../middleware/auth.js';
 import { AppError } from '../middleware/errorHandler.js';
 
@@ -33,7 +33,7 @@ router.get('/', async (req: AuthRequest, res, next) => {
       slug: i.product.slug,
       price: Number(i.product.price),
       compareAtPrice: i.product.compareAtPrice ? Number(i.product.compareAtPrice) : null,
-      image: i.product.images[0] ?? getDefaultImageUrl(i.product.name),
+      image: normalizeProductImages(i.product.images)[0] ?? null,
       stock: i.product.stock,
       addedAt: i.createdAt,
     })));

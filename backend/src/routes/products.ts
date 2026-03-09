@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { prisma } from '../lib/prisma.js';
 import { authMiddleware, AuthRequest } from '../middleware/auth.js';
 import { cacheGet, cacheSet, cacheDel } from '../lib/redis.js';
-import { getDefaultImageUrl, normalizeProductImages } from '../lib/images.js';
+import { normalizeProductImages } from '../lib/images.js';
 import { AppError } from '../middleware/errorHandler.js';
 
 const router = Router();
@@ -98,7 +98,7 @@ router.get('/', async (req, res, next) => {
 
     const items = products.map((p) => ({
       ...p,
-      images: normalizeProductImages(p.images, p.name),
+      images: normalizeProductImages(p.images),
       price: Number(p.price),
       compareAtPrice: p.compareAtPrice ? Number(p.compareAtPrice) : null,
       avgRating: reviewStats.get(p.id)?.avgRating ?? null,
@@ -140,7 +140,7 @@ router.get('/featured', async (_req, res, next) => {
     const reviewStats = await getReviewStatsByProductIds(products.map((p) => p.id));
     const items = products.map((p) => ({
       ...p,
-      images: normalizeProductImages(p.images, p.name),
+      images: normalizeProductImages(p.images),
       price: Number(p.price),
       compareAtPrice: p.compareAtPrice ? Number(p.compareAtPrice) : null,
       avgRating: reviewStats.get(p.id)?.avgRating ?? null,
@@ -173,7 +173,7 @@ router.get('/search/suggestions', async (req, res, next) => {
         id: p.id,
         name: p.name,
         slug: p.slug,
-        image: p.images[0] ?? getDefaultImageUrl(p.name),
+        image: normalizeProductImages(p.images)[0] ?? null,
         price: Number(p.price),
       }))
     );
@@ -222,7 +222,7 @@ router.get('/:slug', async (req, res, next) => {
 
     const result = {
       ...product,
-      images: normalizeProductImages(product.images, product.name),
+      images: normalizeProductImages(product.images),
       price: Number(product.price),
       compareAtPrice: product.compareAtPrice ? Number(product.compareAtPrice) : null,
       avgRating:
@@ -232,7 +232,7 @@ router.get('/:slug', async (req, res, next) => {
       reviewCount: product.reviews.length,
       related: related.map((p) => ({
         ...p,
-        images: normalizeProductImages(p.images, p.name),
+        images: normalizeProductImages(p.images),
         price: Number(p.price),
         avgRating: relatedStats.get(p.id)?.avgRating ?? null,
         reviewCount: relatedStats.get(p.id)?.reviewCount ?? 0,

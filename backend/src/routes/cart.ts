@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma.js';
-import { getDefaultImageUrl } from '../lib/images.js';
+import { normalizeProductImages } from '../lib/images.js';
 import { optionalAuth } from '../middleware/optionalAuth.js';
 import { authMiddleware, AuthRequest } from '../middleware/auth.js';
 import { AppError } from '../middleware/errorHandler.js';
@@ -39,7 +39,7 @@ async function loadCart(req: AuthRequest) {
     name: i.product.name,
     slug: i.product.slug,
     price: Number(i.product.price),
-    image: i.product.images[0] ?? getDefaultImageUrl(i.product.name),
+    image: normalizeProductImages(i.product.images)[0] ?? null,
     stock: i.product.stock,
     quantity: Math.min(i.quantity, i.product.stock),
   }));

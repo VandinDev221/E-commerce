@@ -1,7 +1,6 @@
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { FiStar } from 'react-icons/fi';
-import { getDefaultImageUrl } from '../constants';
 import type { CartItem } from '../store/cartSlice';
 
 export interface ProductCardData {
@@ -21,7 +20,7 @@ interface ProductCardProps {
 }
 
 export default function ProductCard({ product, index = 0 }: ProductCardProps) {
-  const image = product.images?.[0] || getDefaultImageUrl(product.name);
+  const image = product.images?.[0] || '';
   const hasDiscount = product.compareAtPrice && product.compareAtPrice > product.price;
   const discountPercent = hasDiscount
     ? Math.round((1 - product.price / product.compareAtPrice!) * 100)
@@ -38,13 +37,19 @@ export default function ProductCard({ product, index = 0 }: ProductCardProps) {
         className="card block overflow-hidden transition hover:shadow-md"
       >
         <div className="relative h-52 w-full overflow-hidden bg-gray-100">
-          <img
-            src={image}
-            alt={product.name}
-            loading="lazy"
-            decoding="async"
-            className="h-full w-full object-cover transition duration-300 hover:scale-105"
-          />
+          {image ? (
+            <img
+              src={image}
+              alt={product.name}
+              loading="lazy"
+              decoding="async"
+              className="h-full w-full object-cover transition duration-300 hover:scale-105"
+            />
+          ) : (
+            <div className="flex h-full w-full items-center justify-center text-xs text-gray-500">
+              Sem imagem real
+            </div>
+          )}
           {hasDiscount && (
             <span className="absolute left-2 top-2 rounded bg-red-500 px-2 py-0.5 text-xs font-medium text-white">
               -{discountPercent}%
