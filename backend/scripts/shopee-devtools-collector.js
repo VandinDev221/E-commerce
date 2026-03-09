@@ -67,7 +67,8 @@
 
       const card =
         anchor.closest('[data-sqe="item"]') ||
-        anchor.closest("section") ||
+        anchor.closest('[class*="item"]') ||
+        anchor.closest('[class*="product"]') ||
         anchor.parentElement;
       const cardText = (card?.textContent || anchor.textContent || "")
         .replace(/\s+/g, " ")
@@ -111,6 +112,17 @@
     }
 
     const products = Array.from(map.values());
+    const fingerprintCount = new Map();
+    for (const p of products) {
+      const key = `${(p.name || "").toLowerCase().trim()}|${Number(p.price || 0).toFixed(2)}|${p.image || ""}`;
+      fingerprintCount.set(key, (fingerprintCount.get(key) || 0) + 1);
+    }
+    const topFingerprint = [...fingerprintCount.values()].sort((a, b) => b - a)[0] || 0;
+    if (products.length >= 10 && topFingerprint / products.length > 0.6) {
+      console.warn(
+        `[collector] ALERTA: dados inconsistentes detectados (${topFingerprint}/${products.length} com mesmo fingerprint). Tente outra página/categoria.`
+      );
+    }
     const payload = JSON.stringify(products, null, 2);
 
     try {
