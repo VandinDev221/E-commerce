@@ -162,6 +162,8 @@ Observações:
 - Produtos são categorizados automaticamente (eletrônicos, acessórios, casa e cozinha etc.).
 - Variáveis úteis para full sync: `SHOPEE_KEYWORDS`, `SHOPEE_PAGES`, `SHOPEE_LIMIT`, `SHOPEE_BATCH_SIZE`, `SHOPEE_FEATURED`, `SHOPEE_OUTPUT_FILE`, `SHOPEE_DRY_RUN=true`.
 - Quando a Shopee bloquear automação, prefira a coleta via DevTools + `shopee:merge-json` + `shopee:import-file`.
+- Importação automática a cada 24h (backend em execução contínua): `SHOPEE_AUTO_IMPORT_ENABLED=true`.
+- Variáveis da automação: `SHOPEE_AUTO_IMPORT_INTERVAL_HOURS` (padrão `24`), `SHOPEE_AUTO_IMPORT_LIMIT` (padrão `24`), `SHOPEE_AUTO_IMPORT_FEATURED` (padrão `8`), `SHOPEE_AUTO_IMPORT_ADMIN_EMAIL`, `SHOPEE_AUTO_IMPORT_ADMIN_PASSWORD`, `SHOPEE_AUTO_IMPORT_RUN_ON_START` (padrão `true`).
 
 ---
 
