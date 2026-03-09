@@ -22,6 +22,7 @@ const OUTPUT_FILE = process.env.SHOPEE_OUTPUT_FILE || '';
 const DRY_RUN = String(process.env.SHOPEE_DRY_RUN || 'false').toLowerCase() === 'true';
 const SHOPEE_LOGIN_EMAIL = process.env.SHOPEE_LOGIN_EMAIL || '';
 const SHOPEE_LOGIN_PASSWORD = process.env.SHOPEE_LOGIN_PASSWORD || '';
+const SKIP_LOGIN_CHECK = String(process.env.SHOPEE_SKIP_LOGIN_CHECK || 'false').toLowerCase() === 'true';
 
 function normalizePrice(text) {
   const priceMatch = text.match(/R\$\s*([\d.,]+)/i);
@@ -45,6 +46,8 @@ function normalizeHref(href, base = 'https://shopee.com.br') {
 }
 
 async function waitForLoginIfNeeded(page) {
+  if (SKIP_LOGIN_CHECK) return;
+
   const isBlockedPage = async () => {
     try {
       return await page.evaluate(() => {
@@ -186,7 +189,11 @@ async function collectProductsFromPage(page, maxProducts) {
         || '';
       const titleAttr = anchor.getAttribute('title');
       const aria = anchor.getAttribute('aria-label');
-      const blockText = (anchor.textContent || '').replace(/\s+/g, ' ').trim();
+      const cardContainer =
+        anchor.closest('[data-sqe="item"]')
+        || anchor.closest('section')
+        || anchor.parentElement;
+      const blockText = (cardContainer?.textContent || anchor.textContent || '').replace(/\s+/g, ' ').trim();
       const priceTextMatch = blockText.match(/R\$\s*[\d.,]+/);
       const priceText = priceTextMatch?.[0] || '';
       const nameCandidate = titleAttr || aria || blockText.split('R$')[0]?.trim() || '';
@@ -220,6 +227,42 @@ async function collectProductsFromPage(page, maxProducts) {
       };
     })
     .filter((item) => item.sourceUrl && item.price);
+}
+
+async function discoverHomeSectionUrls(page, maxUrls = 8) {
+  const raw = await page.evaluate((cap) => {
+    const anchors = Array.from(document.querySelectorAll('a[href]'));
+    const urls = [];
+    const seen = new Set();
+    for (const a of anchors) {
+      if (urls.length >= cap * 4) break;
+      const href = a.getAttribute('href') || '';
+      if (!href || seen.has(href)) continue;
+      const hrefLower = href.toLowerCase();
+      const isSearchLike = hrefLower.includes('/search?') || hrefLower.includes('/search/');
+      if (!isSearchLike) continue;
+      seen.add(href);
+      urls.push(href);
+    }
+    return urls.slice(0, cap);
+  }, maxUrls);
+
+  const normalized = raw
+    .map((href) => normalizeHref(href, page.url()))
+    .filter((url) => {
+      if (!url) return false;
+      try {
+        const u = new URL(url);
+        const host = u.hostname.toLowerCase();
+        if (!host.endsWith('shopee.com.br') && !host.endsWith('shopee.com')) return false;
+        if (host.startsWith('help.') || host.startsWith('blog.') || host.startsWith('seller.')) return false;
+        return u.pathname.toLowerCase().includes('/search');
+      } catch {
+        return false;
+      }
+    });
+
+  return Array.from(new Set(normalized)).slice(0, maxUrls);
 }
 
 async function loginAdmin() {
@@ -299,13 +342,29 @@ async function run() {
     try {
       const targets = [SHOPEE_URL, ...SECTION_URLS].slice(0, 20);
       const seen = new Map();
-      for (const target of targets) {
+      for (let i = 0; i < targets.length && i < 20; i += 1) {
+        const target = targets[i];
         console.log(`[shopee-sync] coletando: ${target}`);
         await page.goto(target, { waitUntil: 'domcontentloaded', timeout: 60000 });
         const extracted = await collectProductsFromPage(page, LIMIT);
         for (const item of extracted) {
           if (!item.sourceUrl) continue;
           if (!seen.has(item.sourceUrl)) seen.set(item.sourceUrl, item);
+        }
+
+        if (
+          i === 0
+          && targets.length === 1
+          && extracted.length === 0
+          && target.startsWith('https://shopee.com.br/')
+        ) {
+          const discovered = await discoverHomeSectionUrls(page, 8);
+          for (const url of discovered) {
+            if (!targets.includes(url)) targets.push(url);
+          }
+          if (discovered.length > 0) {
+            console.log(`[shopee-sync] seções descobertas na home: ${discovered.length}`);
+          }
         }
         if (seen.size >= LIMIT) break;
       }
