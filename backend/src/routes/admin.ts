@@ -753,28 +753,45 @@ router.post('/products/import-shopee-home', async (req, res, next) => {
       const featured = i < featuredCount;
       const itemIdMatch = item.url.match(/-i\.(\d+)\.(\d+)/) ?? item.url.match(/\/product\/(\d+)\/(\d+)/);
       const sku = itemIdMatch ? `SHP-${itemIdMatch[1]}-${itemIdMatch[2]}` : undefined;
+      const primaryImage = item.images.find((img) => !isPlaceholderImage(img)) ?? item.images[0] ?? null;
 
       const existingBySource = await prisma.product.findFirst({
         where: { sourceUrl: item.url },
         select: { id: true, slug: true, description: true, images: true, stock: true },
       });
 
-      if (existingBySource) {
+      let existingByFingerprint: { id: string; description: string | null; images: string[]; stock: number } | null = null;
+      if (!existingBySource) {
+        existingByFingerprint = await prisma.product.findFirst({
+          where: {
+            name: item.name,
+            costPrice: item.costPrice,
+            ...(primaryImage
+              ? { images: { has: primaryImage } }
+              : {}),
+          },
+          select: { id: true, description: true, images: true, stock: true },
+          orderBy: { updatedAt: 'desc' },
+        });
+      }
+      const existingTarget = existingBySource ?? existingByFingerprint;
+
+      if (existingTarget) {
         const importedHasRealImage = item.images.some((img) => !isPlaceholderImage(img));
-        const existingHasRealImage = (existingBySource.images ?? []).some((img) => !isPlaceholderImage(img));
+        const existingHasRealImage = (existingTarget.images ?? []).some((img) => !isPlaceholderImage(img));
         const descriptionToSave =
-          item.description && item.description.length >= (existingBySource.description?.length ?? 0)
+          item.description && item.description.length >= (existingTarget.description?.length ?? 0)
             ? item.description
-            : existingBySource.description;
+            : existingTarget.description;
         const updated = await prisma.product.update({
-          where: { id: existingBySource.id },
+          where: { id: existingTarget.id },
           data: {
             name: item.name,
             description: descriptionToSave ?? undefined,
             costPrice: item.costPrice,
             price: item.price,
-            images: importedHasRealImage || !existingHasRealImage ? item.images : existingBySource.images,
-            stock: Math.max(100, item.stock, existingBySource.stock),
+            images: importedHasRealImage || !existingHasRealImage ? item.images : existingTarget.images,
+            stock: Math.max(100, item.stock, existingTarget.stock),
             categoryId,
             sourceUrl: item.url,
             featured,
