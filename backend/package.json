@@ -16,7 +16,8 @@
     "test": "jest --runInBand",
     "smoke:prod": "bash scripts/smoke-prod.sh",
     "shopee:sync": "node scripts/sync-shopee-home.mjs",
-    "shopee:full-sync": "bash scripts/full-sync-shopee.sh"
+    "shopee:full-sync": "bash scripts/full-sync-shopee.sh",
+    "shopee:import-file": "bash scripts/import-shopee-file.sh"
   },
   "dependencies": {
     "dotenv": "^16.4.5",

@@ -1,0 +1,15 @@
+[
+  {
+    "name": "Nome do produto Shopee",
+    "description": "Descricao opcional",
+    "price": 99.9,
+    "image": "https://down-br.img.susercontent.com/file/xxxxxxxx",
+    "sourceUrl": "https://shopee.com.br/Nome-do-produto-i.123456789.987654321"
+  },
+  {
+    "name": "Outro produto Shopee",
+    "price": 149.5,
+    "image": "https://down-br.img.susercontent.com/file/yyyyyyyy",
+    "sourceUrl": "https://shopee.com.br/product/123456789/987654322"
+  }
+]

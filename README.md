@@ -140,9 +140,11 @@ Para importar **todos os produtos encontrados** na Shopee com margem automática
 2. Via arquivo JSON (quando a Shopee bloquear scraping direto):
    - `cd backend && SHOPEE_INPUT_FILE=/caminho/produtos.json npm run shopee:sync`
    - também funciona no comando full: `cd backend && SHOPEE_INPUT_FILE=/caminho/produtos.json npm run shopee:full-sync`
+   - comando estável direto por arquivo: `cd backend && npm run shopee:import-file -- /caminho/produtos.json`
 
 Formato do JSON:
 - `[{"name":"Produto","price":99.9,"image":"https://...","sourceUrl":"https://shopee.com.br/..."}]`
+- template pronto: `backend/tmp/shopee_products_template.json`
 
 Observações:
 - O script envia em lotes para `/api/admin/products/import-shopee-home`.
