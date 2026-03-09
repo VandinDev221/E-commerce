@@ -215,16 +215,65 @@ function inferShopeeSection(name: string, description?: string | null) {
   return found ?? { slug: 'geral', name: 'Geral', keywords: [] };
 }
 
+function listNewestJsonFiles(dirPath: string, prefix: string, take = 3) {
+  try {
+    const names = fs.readdirSync(dirPath);
+    return names
+      .filter((name) => name.startsWith(prefix) && name.endsWith('.json'))
+      .map((name) => `${dirPath}/${name}`)
+      .map((filePath) => {
+        try {
+          return { filePath, mtimeMs: fs.statSync(filePath).mtimeMs };
+        } catch {
+          return null;
+        }
+      })
+      .filter((entry): entry is { filePath: string; mtimeMs: number } => Boolean(entry))
+      .sort((a, b) => b.mtimeMs - a.mtimeMs)
+      .slice(0, take)
+      .map((entry) => entry.filePath);
+  } catch {
+    return [];
+  }
+}
+
 function loadShopeeFallbackProducts(limit: number): ShopeeImportInputProduct[] {
   try {
-    const fileUrl = new URL('../../tmp/produtos.json', import.meta.url);
-    if (!fs.existsSync(fileUrl)) return [];
-    const raw = JSON.parse(fs.readFileSync(fileUrl, 'utf8'));
-    const parsed = z.array(shopeeImportProductSchema).safeParse(raw);
-    if (!parsed.success) return [];
-    return parsed.data
-      .filter((p) => p.sourceUrl && isShopeeProductUrl(normalizeShopeeProductUrl(p.sourceUrl) ?? ''))
-      .slice(0, limit);
+    const tmpDir = new URL('../../tmp', import.meta.url);
+    const tmpPath = tmpDir.pathname;
+    const candidates = [
+      `${tmpPath}/produtos.json`,
+      `${tmpPath}/produtos_reais_shopee.json`,
+      ...listNewestJsonFiles(tmpPath, 'shopee_import_file_', 5),
+      ...listNewestJsonFiles(tmpPath, 'shopee_full_sync_', 5),
+    ];
+
+    const seen = new Set<string>();
+    const collected: ShopeeImportInputProduct[] = [];
+
+    for (const filePath of candidates) {
+      if (!fs.existsSync(filePath)) continue;
+      try {
+        const raw = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+        const parsed = z.array(shopeeImportProductSchema).safeParse(raw);
+        if (!parsed.success) continue;
+        for (const p of parsed.data) {
+          const normalizedSource = p.sourceUrl ? normalizeShopeeProductUrl(p.sourceUrl) : null;
+          if (!normalizedSource || !isShopeeProductUrl(normalizedSource)) continue;
+          if (seen.has(normalizedSource)) continue;
+          seen.add(normalizedSource);
+          collected.push({
+            ...p,
+            sourceUrl: normalizedSource,
+          });
+          if (collected.length >= limit) return collected;
+        }
+      } catch {
+        // ignora arquivo inválido e tenta o próximo
+      }
+    }
+
+    return collected.slice(0, limit);
   } catch {
     return [];
   }
@@ -607,7 +656,17 @@ router.post('/products/import-shopee-home', async (req, res, next) => {
     }
 
     if (importedRaw.length === 0) {
-      throw new AppError('Nenhum produto válido foi extraído da Shopee. Tente outros links.', 400);
+      const fallbackProducts = loadShopeeFallbackProducts(limit);
+      if (fallbackProducts.length > 0) {
+        await addManualProducts(fallbackProducts);
+      }
+    }
+
+    if (importedRaw.length === 0) {
+      throw new AppError(
+        'Nenhum produto válido foi extraído online. O fallback automático também não encontrou base local válida.',
+        400
+      );
     }
 
     const existingCategories = await prisma.category.findMany({
